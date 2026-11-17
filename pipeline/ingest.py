@@ -11,6 +11,7 @@ import json
 import re
 import shutil
 import sys
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -27,6 +28,15 @@ from config import (
     SEPA_API,
     SEPA_ZIP_FALLBACK,
 )
+
+UA = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
+}
 
 SQL_NORMALIZA = """
 CREATE OR REPLACE TABLE precios AS
@@ -76,6 +86,16 @@ WHERE regexp_matches(p.id_producto, '^[0-9]{{13}}$')
 """
 
 
+def abrir(url: str, timeout: int = 120):
+    """Abre una URL con cabeceras de navegador.
+
+    El WAF de datos.produccion.gob.ar devuelve 403 al User-Agent por defecto de
+    urllib, sobre todo desde direcciones de datacenter (GitHub Actions).
+    """
+    req = urllib.request.Request(url, headers=UA)
+    return urllib.request.urlopen(req, timeout=timeout)
+
+
 def elegir_volcado() -> tuple[str, str]:
     """Pide la API de datos abiertos y devuelve el ZIP más reciente.
 
@@ -84,7 +104,7 @@ def elegir_volcado() -> tuple[str, str]:
     republicara el lunes toda la semana, así que se ordena por `last_modified`.
     """
     try:
-        with urllib.request.urlopen(SEPA_API, timeout=60) as r:
+        with abrir(SEPA_API, timeout=60) as r:
             data = json.load(r)
         recursos = [
             x for x in data["result"]["resources"]
@@ -103,12 +123,21 @@ def elegir_volcado() -> tuple[str, str]:
         return SEPA_ZIP_FALLBACK, "respaldo"
 
 
-def descargar(url: str, destino: Path) -> Path:
+def descargar(url: str, destino: Path, intentos: int = 3) -> Path:
     destino.parent.mkdir(parents=True, exist_ok=True)
     print(f"Descargando {url}")
-    with urllib.request.urlopen(url, timeout=120) as r, open(destino, "wb") as f:
-        shutil.copyfileobj(r, f, length=1 << 20)
-    print(f"  {destino} ({destino.stat().st_size / 1e6:.0f} MB)")
+    for n in range(1, intentos + 1):
+        try:
+            with abrir(url) as r, open(destino, "wb") as f:
+                shutil.copyfileobj(r, f, length=1 << 20)
+            print(f"  {destino} ({destino.stat().st_size / 1e6:.0f} MB)")
+            return destino
+        except Exception as e:
+            if n == intentos:
+                raise
+            espera = 20 * n
+            print(f"  Falló ({e}). Reintento {n}/{intentos - 1} en {espera}s.")
+            time.sleep(espera)
     return destino
 
 
