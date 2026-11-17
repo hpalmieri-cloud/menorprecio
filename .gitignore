@@ -1,0 +1,29 @@
+# Datos y temporales
+data/
+temp/
+tmp/
+*.duckdb
+*.parquet
+*.zip
+
+# Entornos y toolchain portátil
+.venv/
+venv/
+tools/
+__pycache__/
+*.py[cod]
+
+# Salidas
+dist/
+build/
+
+# Sistema
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# Secretos
+.env
+.env.*

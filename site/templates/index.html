@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="hero">
+  <div class="contenedor">
+    <h1>Cuánto sale de verdad,<br>en qué súper está más barato.</h1>
+    <p class="bajada">
+      Precios oficiales de {{ total_productos }} productos en {{ total_sucursales }}
+      sucursales de todo el país. Actualizado todos los días.
+    </p>
+    <form class="buscador" role="search" onsubmit="return false">
+      <label class="sr" for="q">Buscar producto</label>
+      <input id="q" type="search" placeholder="Ej.: leche entera, yerba, detergente…" autocomplete="off">
+      <div id="resultados" class="resultados" hidden></div>
+    </form>
+    <p class="pista">O mirá los <a href="#categorias">precios por categoría</a>.</p>
+  </div>
+</section>
+
+<section class="seccion" id="categorias">
+  <div class="contenedor">
+    <h2>Precios por categoría</h2>
+    <div class="grilla-categorias">
+      {% for c in categorias %}
+      <a class="tarjeta-categoria" href="/precios/{{ c.slug }}/">
+        <span class="cat-nombre">{{ c.nombre }}</span>
+        <span class="cat-dato">{{ c.n_productos }} productos · desde {{ c.precio_desde }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="seccion seccion-alt">
+  <div class="contenedor dos-columnas">
+    <div>
+      <h2>Qué mirar antes de comprar</h2>
+      <p>
+        Un mismo producto puede costar hasta el triple según la cadena y la
+        sucursal. Estos son los tres datos que mueven la aguja:
+      </p>
+      <ul class="lista-util">
+        <li><strong>Precio de lista vs. promo.</strong> Las promociones suelen requerir tarjeta o pertenecer a un programa de fidelidad. Mostramos ambas.</li>
+        <li><strong>Precio por unidad.</strong> Dos envases distintos del mismo producto no se comparan por precio final, sino por litro o kilo.</li>
+        <li><strong>Sucursal.</strong> La misma cadena cobra distinto según el local. El ranking es por sucursal, no por marca.</li>
+      </ul>
+    </div>
+    <div class="panel-dato">
+      <h3>El dato del día</h3>
+      <p>
+        Entre las {{ total_sucursales }} sucursales relevadas, la diferencia
+        promedio entre el precio más bajo y el más alto de un mismo producto es
+        del <strong>{{ brecha_promedio }}%</strong>.
+      </p>
+      <p class="nota">Calculado sobre productos presentes en 5 cadenas o más.</p>
+    </div>
+  </div>
+</section>
+
+<section class="seccion">
+  <div class="contenedor">
+    <h2>Más relevados esta semana</h2>
+    <div class="grilla-productos">
+      {% for p in destacados %}
+      <a class="tarjeta-producto" href="/precios/producto/{{ p.ean }}/">
+        <span class="prod-nombre">{{ p.nombre_corto }}</span>
+        <span class="prod-marca">{{ p.marca or "Sin marca" }}</span>
+        <span class="prod-precio">desde {{ p.precio_min_fmt }}</span>
+        <span class="prod-dato">{{ p.n_sucursales }} sucursales</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/buscador.js" defer></script>
+{% endblock %}

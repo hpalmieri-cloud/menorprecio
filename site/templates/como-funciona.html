@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<article class="contenedor ficha" style="max-width: 760px">
+  <header class="ficha-cabecera">
+    <h1>Cómo funciona Menor Precio</h1>
+  </header>
+
+  <section class="bloque texto">
+    <h2>De dónde salen los precios</h2>
+    <p>
+      Todos los precios provienen del <strong>SEPA (Precios Claros)</strong>, el
+      sistema de la Secretaría de Comercio de la Nación. Por ley, los grandes
+      comercios minoristas y mayoristas informan a diario el precio de cada
+      producto en cada uno de sus locales. Es dato público, no una estimación
+      nuestra.
+    </p>
+    <p>
+      Descargamos ese volcado una vez al día, lo procesamos y publicamos el
+      resultado. No consultamos a los supermercados ni completamos precios a
+      mano.
+    </p>
+
+    <h2>Qué significa cada número</h2>
+    <ul class="lista-util">
+      <li><strong>Más barato:</strong> el menor precio de lista registrado entre todas las sucursales relevadas.</li>
+      <li><strong>Mediana:</strong> el valor del medio. Es más representativo que el promedio cuando hay locales con precios atípicos.</li>
+      <li><strong>Promo:</strong> precio promocional informado por el comercio. Puede exigir tarjeta bancaria, programa de fidelidad o compra mínima; la leyenda exacta la define el comercio.</li>
+      <li><strong>Por cadena:</strong> el rango dentro de una misma cadena. No todas las sucursales cobran igual.</li>
+    </ul>
+
+    <h2>Qué no podemos garantizar</h2>
+    <p>
+      El precio publicado es el que el comercio informó al SEPA. Puede no
+      coincidir con la góndola por errores de carga, demoras de actualización o
+      faltantes de stock. Antes de comprar, verificá en el local. Si encontrás
+      una diferencia, podés reclamar al 0800-666-1518 del SEPA.
+    </p>
+
+    <h2>Por qué no mostramos fotos</h2>
+    <p>
+      El volcado oficial no incluye imágenes y las fotos de los comercios tienen
+      dueño. Preferimos no usar material ajeno: cada ficha se identifica por
+      nombre, marca y código EAN, que es lo que figura en el envase.
+    </p>
+
+    <h2>Licencia</h2>
+    <p>
+      Los datos se publican bajo licencia
+      <a href="https://www.preciosclaros.gob.ar/terminos_y_condiciones.html" rel="nofollow noopener">CC BY 2.5 AR</a>.
+      Este sitio es independiente: no tiene vínculo con el Estado nacional ni
+      con las cadenas mencionadas.
+    </p>
+  </section>
+</article>
+{% endblock %}

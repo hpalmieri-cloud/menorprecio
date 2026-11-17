@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}{{ titulo }}{% endblock %}</title>
+  <meta name="description" content="{{ descripcion }}">
+  <link rel="canonical" href="https://menorprecio.com.ar{{ ruta }}">
+  <meta property="og:title" content="{{ titulo }}">
+  <meta property="og:description" content="{{ descripcion }}">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_AR">
+  <meta name="theme-color" content="#12496b">
+  <link rel="icon" href="/assets/favicon.svg">
+  <link rel="stylesheet" href="/assets/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <a class="skip" href="#contenido">Ir al contenido</a>
+  <header class="cabecera">
+    <div class="contenedor cabecera-in">
+      <a class="marca" href="/">
+        <span class="marca-icono" aria-hidden="true">%</span>
+        <span>Menor Precio</span>
+      </a>
+      <nav aria-label="Principal">
+        <a href="/precios/">Categorías</a>
+        <a href="/precios/como-funciona/">Cómo funciona</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="contenido">
+    {% block contenido %}{% endblock %}
+  </main>
+
+  <footer class="pie">
+    <div class="contenedor">
+      <p class="fuente">
+        Precios informados por los comercios al <strong>SEPA — Precios Claros</strong>,
+        Secretaría de Comercio de la Nación. Relevamiento del {{ fecha_larga }}.
+        Licencia <a href="https://www.preciosclaros.gob.ar/terminos_y_condiciones.html" rel="nofollow noopener">CC BY 2.5 AR</a>.
+      </p>
+      <p class="aviso">
+        Los precios pueden diferir en góndola y están sujetos a stock. Las marcas
+        y logotipos pertenecen a sus titulares. Sitio independiente, sin vínculo
+        con el Estado ni con los comercios.
+      </p>
+      <nav class="pie-nav" aria-label="Legal">
+        <a href="/precios/como-funciona/">Cómo funciona</a>
+        <a href="/privacidad.html">Privacidad</a>
+        <a href="/contacto.html">Contacto</a>
+      </nav>
+    </div>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<header class="contenedor cabecera-seccion">
+  <h1>Precios por categoría</h1>
+  <p class="bajada">
+    {{ total_productos }} productos relevados en {{ total_sucursales }} sucursales.
+    Elegí un rubro para ver el ranking de precios.
+  </p>
+</header>
+
+<section class="contenedor">
+  <div class="grilla-categorias">
+    {% for c in categorias %}
+    <a class="tarjeta-categoria" href="/precios/{{ c.slug }}/">
+      <span class="cat-nombre">{{ c.nombre }}</span>
+      <span class="cat-dato">{{ c.n_productos }} productos · desde {{ c.precio_desde }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

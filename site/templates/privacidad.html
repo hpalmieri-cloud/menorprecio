@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<article class="contenedor ficha" style="max-width: 760px">
+  <header class="ficha-cabecera">
+    <h1>Política de privacidad</h1>
+  </header>
+
+  <section class="bloque texto">
+    <p>Última actualización: {{ fecha_larga }}.</p>
+
+    <h2>Qué datos recolectamos</h2>
+    <p>
+      Menor Precio no tiene registro de usuarios ni base de datos de personas.
+      No pedimos nombre, correo ni teléfono para usar el sitio.
+    </p>
+
+    <h2>Cookies y publicidad</h2>
+    <p>
+      El sitio puede mostrar anuncios de Google AdSense. Google y sus socios
+      utilizan cookies para mostrar anuncios basados en visitas previas a este u
+      otros sitios. Podés desactivar la personalización en
+      <a href="https://adssettings.google.com" rel="nofollow noopener">Configuración de anuncios de Google</a>.
+    </p>
+    <p>
+      También podemos usar cookies técnicas para recordar preferencias de
+      navegación. No se usan para identificarte personalmente.
+    </p>
+
+    <h2>Medición</h2>
+    <p>
+      Si se activa una herramienta de analítica, será para contar visitas y
+      páginas vistas de forma agregada. No cruzamos esos datos con información
+      personal.
+    </p>
+
+    <h2>Datos de terceros</h2>
+    <p>
+      Los precios provienen del SEPA (Secretaría de Comercio). Las consultas de
+      geolocalización, si las hubiera, se resuelven en tu navegador y no se
+      almacenan en nuestros servidores.
+    </p>
+
+    <h2>Contacto</h2>
+    <p>
+      Por consultas sobre privacidad escribí a
+      <a href="mailto:hola@menorprecio.com.ar">hola@menorprecio.com.ar</a>.
+    </p>
+  </section>
+</article>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<nav class="migas contenedor" aria-label="Ruta">
+  <a href="/">Inicio</a> › <a href="/precios/">Precios</a> › {{ nombre }}
+</nav>
+
+<header class="contenedor cabecera-seccion">
+  <h1>Precios de {{ nombre | lower }}</h1>
+  <p class="bajada">
+    {{ n_productos }} productos relevados en {{ total_sucursales }} sucursales.
+    Ordenados por cantidad de locales donde se consiguen.
+  </p>
+</header>
+
+<section class="contenedor">
+  <div class="tabla-scroll">
+    <table class="tabla tabla-listado">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th>Marca</th>
+          <th class="num">Desde</th>
+          <th class="num">Mediana</th>
+          <th class="num">Sucursales</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in productos %}
+        <tr>
+          <td><a href="/precios/producto/{{ p.ean }}/">{{ p.nombre_corto }}</a></td>
+          <td>{{ p.marca or "—" }}</td>
+          <td class="num">{{ p.precio_min_fmt }}</td>
+          <td class="num">{{ p.precio_mediana_fmt }}</td>
+          <td class="num">{{ p.n_sucursales }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="nota-campo">
+    Se listan los {{ productos|length }} productos más disponibles de la categoría.
+    Usá el <a href="/">buscador</a> para encontrar cualquier otro.
+  </p>
+</section>
+{% endblock %}

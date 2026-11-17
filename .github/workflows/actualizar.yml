@@ -1,0 +1,43 @@
+name: Actualizar precios
+
+on:
+  schedule:
+    # 17:00 UTC = 14:00 ART. El SEPA publica el volcado ~13:20 ART.
+    - cron: "0 17 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: actualizar
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Descargar y normalizar
+        run: python pipeline/ingest.py
+
+      - name: Clasificar productos
+        run: python pipeline/productos.py
+
+      - name: Generar sitio
+        run: python pipeline/build.py
+
+      - name: Publicar en Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=menorprecio --branch=main
