@@ -22,6 +22,7 @@ build/
 Thumbs.db
 Desktop.ini
 .DS_Store
+.wrangler/
 .vscode/
 .idea/
 
