@@ -104,10 +104,12 @@ site/
   static/       CSS, JS del buscador y favicon
 .github/
   workflows/
-    actualizar.yml   cron diario + deploy a Cloudflare Pages
+    actualizar.yml   pipeline manual (sin cron)
+publicar.ps1    actualización diaria + deploy (Programador de tareas)
 data/           parquet y fecha del relevamiento (no se versiona)
 dist/           sitio generado (no se versiona)
-tools/          uv y Python portátil (no se versiona)
+logs/           salidas de cada actualización (no se versiona)
+tools/          uv, Python, Node y wrangler portátiles (no se versiona)
 ```
 
 ## Alcance del MVP
@@ -168,25 +170,58 @@ El resultado queda en `dist/`. Para verlo:
 
 ---
 
-## Publicación en Cloudflare Pages
+## Publicación
 
-1. Crear un proyecto de Pages llamado `menorprecio`.
-2. En el repositorio de GitHub, cargar dos secretos:
-   - `CLOUDFLARE_API_TOKEN` — token con permiso *Cloudflare Pages: Edit*.
-   - `CLOUDFLARE_ACCOUNT_ID` — ID de la cuenta.
-3. El workflow `.github/workflows/actualizar.yml` corre todos los días a las
-   **17:00 UTC (14:00 ART)**, procesa el volcado y despliega en la rama `main`.
+Sitio publicado: **https://menorprecio.pages.dev** (proyecto de Pages
+`menorprecio`).
 
-El SEPA publica el archivo alrededor de las 13:20 ART, así que hay margen.
+### Por qué no lo actualiza GitHub Actions
 
-También se puede disparar a mano desde *Actions → Actualizar precios → Run
-workflow*.
+`datos.produccion.gob.ar` **solo responde a conexiones argentinas**. Desde los
+runners de GitHub (IPs de datacenter en EE. UU.) la API de CKAN y la descarga
+del ZIP devuelven `403`, y desde otros puntos del exterior la conexión
+directamente expira. Probado con `User-Agent` de navegador: el bloqueo es por
+IP, no por cabeceras.
+
+Por eso la actualización corre en la PC, con el **Programador de tareas de
+Windows**:
+
+| | |
+|---|---|
+| Tarea | `MenorPrecio - actualizar y publicar` |
+| Horario | todos los días 14:30 (ART) |
+| Si la PC estaba apagada | corre al encenderse (`StartWhenAvailable`) |
+| Script | `publicar.ps1` |
+| Logs | `logs/publicar-*.log` (no se versionan) |
+
+`publicar.ps1` encadena `ingest.py` → `productos.py` → `build.py` y publica el
+resultado con `wrangler pages deploy`.
+
+### Credenciales
+
+Node y wrangler viven en `tools/` (portátiles, no versionados). Las
+credenciales se guardan como variables de usuario de Windows:
+
+```powershell
+setx CLOUDFLARE_API_TOKEN "<token con permiso Cloudflare Pages: Edit>"
+setx CLOUDFLARE_ACCOUNT_ID "<account id>"
+```
+
+Para una actualización manual:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File publicar.ps1
+```
+
+El workflow `.github/workflows/actualizar.yml` quedó **sin cron, solo manual**,
+para probar cambios del pipeline donde la descarga sí funcione (por ejemplo un
+runner self-hosted argentino).
 
 ### Dominio
 
-`menorprecio.com.ar` ya está en Cloudflare. Cuando el sitio nuevo esté
-aprobado, en el proyecto de Pages: *Custom domains → Set up a domain*, y se
-reemplaza el destino actual. No cambiar el DNS antes de aprobar el contenido.
+`menorprecio.com.ar` ya está en Cloudflare y hoy apunta al sitio anterior. El
+cambio se hace en el proyecto de Pages: *Custom domains → Set up a domain*. No
+tocar el DNS hasta aprobar el contenido nuevo.
 
 ---
 

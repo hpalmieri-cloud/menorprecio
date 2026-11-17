@@ -1,9 +1,13 @@
-name: Actualizar precios
+name: Actualizar precios (manual)
+
+# No tiene cron a propósito.
+# El SEPA solo responde a conexiones argentinas: desde los runners de GitHub
+# (IPs de datacenter en EE. UU.) la API y el ZIP devuelven 403 o no responden.
+# La actualización diaria corre en Windows con `publicar.ps1` y el Programador
+# de tareas. Este workflow queda para probar cambios del pipeline a mano en
+# entornos donde la descarga sí funcione (por ejemplo, un runner self-hosted).
 
 on:
-  schedule:
-    # 17:00 UTC = 14:00 ART. El SEPA publica el volcado ~13:20 ART.
-    - cron: "0 17 * * *"
   workflow_dispatch:
 
 concurrency:

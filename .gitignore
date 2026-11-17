@@ -1,5 +1,6 @@
 # Datos y temporales
 data/
+logs/
 temp/
 tmp/
 *.duckdb
