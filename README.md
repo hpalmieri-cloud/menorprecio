@@ -219,9 +219,13 @@ runner self-hosted argentino).
 
 ### Dominio
 
-`menorprecio.com.ar` ya está en Cloudflare y hoy apunta al sitio anterior. El
-cambio se hace en el proyecto de Pages: *Custom domains → Set up a domain*. No
-tocar el DNS hasta aprobar el contenido nuevo.
+`menorprecio.com.ar` ya sirve el sitio nuevo: el proyecto de Pages `menorprecio`
+tiene el dominio como *custom domain*, con certificado activo. `www` redirige
+con 301 al dominio principal mediante una regla de página de Cloudflare, para
+no duplicar contenido.
+
+El sitio anterior quedó en el Worker `menor-precio-2`, sin hostnames asignados:
+no recibe tráfico, pero sigue existiendo por si hace falta volver atrás.
 
 ---
 
