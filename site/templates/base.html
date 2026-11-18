@@ -13,6 +13,9 @@
   <meta name="theme-color" content="#12496b">
   <link rel="icon" href="/assets/favicon.svg">
   <link rel="stylesheet" href="/assets/style.css">
+  {% if adsense %}
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense }}" crossorigin="anonymous"></script>
+  {% endif %}
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -27,6 +30,15 @@
         <a href="/precios/">Categorías</a>
         <a href="/precios/como-funciona/">Cómo funciona</a>
       </nav>
+      <div class="zona" role="search">
+        <label class="sr" for="zona-q">Buscar precios en tu localidad</label>
+        <input id="zona-q" type="search" placeholder="Tu localidad" autocomplete="off"
+               aria-autocomplete="list" aria-controls="zona-lista" aria-expanded="false">
+        <ul id="zona-lista" class="zona-lista" role="listbox" hidden></ul>
+        <button id="zona-gps" class="zona-gps" type="button"
+                title="Usar mi ubicación" aria-label="Usar mi ubicación">◎</button>
+        <span id="zona-estado" class="zona-estado" aria-live="polite"></span>
+      </div>
     </div>
   </header>
 
@@ -47,12 +59,14 @@
         con el Estado ni con los comercios.
       </p>
       <nav class="pie-nav" aria-label="Legal">
+        <a href="/precios/zona/">Precios por zona</a>
         <a href="/precios/como-funciona/">Cómo funciona</a>
         <a href="/privacidad.html">Privacidad</a>
         <a href="/contacto.html">Contacto</a>
       </nav>
     </div>
   </footer>
+  <script src="/assets/zona.js" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

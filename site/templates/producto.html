@@ -12,6 +12,11 @@
     <p class="ficha-meta">{% if marca and marca != 'SIN MARCA' %}{{ marca }} · {% endif %}EAN {{ ean }} · {{ n_sucursales }} sucursales de {{ n_cadenas }} {{ 'cadena' if n_cadenas == 1 else 'cadenas' }}</p>
   </header>
 
+  <section class="bloque panel-zona" id="panel-zona" data-ean="{{ ean }}" data-fecha="{{ fecha_larga }}" hidden>
+    <h2 id="panel-zona-titulo">Precios en tu zona</h2>
+    <div id="panel-zona-cuerpo"></div>
+  </section>
+
   <section class="panel-precios" aria-label="Resumen de precios">
     <div class="dato">
       <span class="etiqueta">Más barato</span>
@@ -91,6 +96,33 @@
       </tbody>
     </table>
   </section>
+
+  {% if provincias %}
+  <section class="bloque" id="bloque-provincias">
+    <h2>Precios por provincia</h2>
+    <p class="nota-campo">
+      Precio más bajo registrado en cada provincia, con la cadena y la localidad
+      donde se encontró. Elegí tu localidad arriba para ver el detalle de tu zona.
+    </p>
+    <div class="tabla-scroll">
+      <table class="tabla tabla-compacta">
+        <thead>
+          <tr><th>Provincia</th><th class="num">Desde</th><th>Comercio</th><th>Localidad</th></tr>
+        </thead>
+        <tbody>
+          {% for pr in provincias %}
+          <tr data-iso="{{ pr.iso }}">
+            <td><a href="/precios/zona/{{ pr.slug }}/">{{ pr.nombre }}</a></td>
+            <td class="num">{{ pr.precio_fmt }}</td>
+            <td>{{ pr.bandera }}</td>
+            <td>{{ pr.localidad or "—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
 
   <section class="bloque texto">
     <h2>Qué dice el relevamiento</h2>

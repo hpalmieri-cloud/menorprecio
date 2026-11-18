@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<nav class="migas contenedor" aria-label="Ruta">
+  <a href="/">Inicio</a> › <a href="/precios/">Precios</a> ›
+  <a href="/precios/zona/">Zonas</a> › {{ provincia.nombre }}
+</nav>
+
+<article class="contenedor ficha">
+  <header class="cabecera-seccion">
+    <h1>Precios en {{ provincia.nombre }}</h1>
+    <p class="bajada">
+      {{ provincia.n_sucursales }} sucursales relevadas en
+      {{ provincia.n_localidades }} localidades. Estos son los
+      {{ productos|length }} precios más bajos del relevamiento del
+      {{ fecha_larga }}, de menor a mayor.
+    </p>
+  </header>
+
+  <section class="bloque">
+    <h2>Los más baratos</h2>
+    <p class="nota-campo">
+      Precio mínimo registrado en la provincia para cada producto. Escribí tu
+      localidad en el buscador de arriba para ver el detalle de tu zona.
+    </p>
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr><th>Producto</th><th>Rubro</th><th class="num">Desde</th></tr>
+        </thead>
+        <tbody>
+          {% for p in productos %}
+          <tr>
+            <td>
+              <a href="/precios/producto/{{ p.ean }}/">{{ p.nombre_corto }}</a>
+              {% if p.marca %}<small>· {{ p.marca }}</small>{% endif %}
+            </td>
+            <td>{{ p.categoria }}</td>
+            <td class="num">{{ p.precio_fmt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="bloque">
+    <h2>Localidades relevadas</h2>
+    <p class="nota-campo">Cantidad de sucursales con precios informados.</p>
+    <ul class="lista-localidades">
+      {% for l in provincia.localidades %}
+      <li><span>{{ l.nombre }}</span> <span class="dato">{{ l.n }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <p class="nota-campo">
+    Precios informados por los comercios al SEPA — Precios Claros el
+    {{ fecha_larga }}. Pueden diferir en góndola y están sujetos a stock.
+  </p>
+</article>
+{% endblock %}

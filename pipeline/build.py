@@ -11,7 +11,24 @@ from pathlib import Path
 import duckdb
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from config import DATA, DIST, FICHAS_MVP, PRECIOS_PARQUET, PRODUCTOS_PARQUET, SITE
+from config import (
+    ADSENSE_CLIENT,
+    DATA,
+    DIST,
+    FICHAS_MVP,
+    PRECIOS_PARQUET,
+    PRODUCTOS_PARQUET,
+    SITE,
+)
+from ubicaciones import (
+    PROVINCIAS,
+    clave_localidad,
+    iso_provincia,
+    nombre_localidad,
+    slug,
+    slug_provincia,
+    zona_localidad,
+)
 
 BASE_URL = "https://menorprecio.com.ar"
 OFERTAS_POR_FICHA = 20
@@ -131,6 +148,244 @@ def cargar_ofertas(con, eans: list[str]) -> dict[str, list[dict]]:
     return ofertas
 
 
+def cargar_ubicaciones(con) -> list[dict]:
+    """Localidades con coordenadas y cantidad de sucursales, ya normalizadas."""
+    filas = con.execute(f"""
+        WITH suc AS (
+            SELECT DISTINCT provincia, localidad, suc_key, lat, lng
+            FROM '{PRECIOS_PARQUET.as_posix()}'
+            WHERE localidad IS NOT NULL AND lat IS NOT NULL AND lng IS NOT NULL
+        )
+        SELECT provincia, localidad, COUNT(*) AS n, AVG(lat), AVG(lng)
+        FROM suc GROUP BY 1, 2
+    """).fetchall()
+
+    acumulado: dict[tuple[str, str], dict] = {}
+    for prov, loc, n, lat, lng in filas:
+        zona = zona_localidad(prov, loc)
+        if not zona:
+            continue
+        iso, clave_loc = zona
+        clave = (iso, clave_loc)
+        actual = acumulado.get(clave)
+        if actual is None:
+            acumulado[clave] = {
+                "iso": iso,
+                "nombre": nombre_localidad(loc),
+                "n": n,
+                "lat": [lat], "lng": [lng],
+            }
+        else:
+            actual["n"] += n
+            actual["lat"].append(lat)
+            actual["lng"].append(lng)
+
+    localidades = []
+    usados: set[str] = set()
+    for (iso, _), d in sorted(acumulado.items()):
+        base = f"{slug_provincia(iso)}--{slug(d['nombre'])}"
+        ident = base
+        i = 2
+        while ident in usados:
+            ident = f"{base}-{i}"
+            i += 1
+        usados.add(ident)
+        localidades.append({
+            "nombre": d["nombre"],
+            "iso": iso,
+            "id": ident,
+            "lat": sum(d["lat"]) / len(d["lat"]),
+            "lng": sum(d["lng"]) / len(d["lng"]),
+            "n": d["n"],
+        })
+
+    # Nombres repetidos en distintas provincias: hay que aclarar cuál es.
+    conteo: dict[str, int] = {}
+    for l in localidades:
+        k = clave_localidad(l["nombre"])
+        conteo[k] = conteo.get(k, 0) + 1
+    for l in localidades:
+        l["repetida"] = conteo[clave_localidad(l["nombre"])] > 1
+        # Alias de búsqueda: la ciudad de Buenos Aires también se busca como CABA.
+        l["alias"] = "CABA Capital Federal" if l["nombre"] == "Ciudad de Buenos Aires" else ""
+
+    localidades.sort(key=lambda l: (PROVINCIAS[l["iso"]], l["nombre"]))
+    return localidades
+
+
+def cargar_zonas(con, eans: list[str]) -> dict[str, dict[str, list[dict]]]:
+    """Precio mínimo por producto, provincia y cadena."""
+    if not eans:
+        return {}
+    lista = ",".join("'" + e.replace("'", "") + "'" for e in eans)
+    filas = con.execute(f"""
+        SELECT ean, provincia, bandera,
+               MIN(precio_lista) AS precio,
+               arg_min(localidad, precio_lista) AS localidad,
+               COUNT(DISTINCT suc_key) AS n
+        FROM '{PRECIOS_PARQUET.as_posix()}'
+        WHERE ean IN ({lista}) AND precio_lista > 0 AND provincia IS NOT NULL
+        GROUP BY 1, 2, 3
+    """).fetchall()
+    zonas: dict[str, dict[str, list[dict]]] = {}
+    for ean, prov, bandera, precio, localidad, n in filas:
+        iso = iso_provincia(prov)
+        if not iso:
+            continue
+        zonas.setdefault(ean, {}).setdefault(iso, []).append({
+            "bandera": (bandera or "—").strip(),
+            "precio": precio,
+            "localidad": nombre_localidad(localidad) if localidad else "",
+            "n": n,
+        })
+    for por_iso in zonas.values():
+        for filas_iso in por_iso.values():
+            filas_iso.sort(key=lambda r: r["precio"])
+    return zonas
+
+
+def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
+    """Un JSON por producto con el precio de cada cadena en cada localidad."""
+    if not eans:
+        return 0
+    lista = ",".join("'" + e.replace("'", "") + "'" for e in eans)
+    destino.mkdir(parents=True, exist_ok=True)
+    cur = con.execute(f"""
+        SELECT ean, provincia, localidad, bandera, MIN(precio_lista)
+        FROM '{PRECIOS_PARQUET.as_posix()}'
+        WHERE ean IN ({lista}) AND precio_lista > 0
+          AND localidad IS NOT NULL AND provincia IS NOT NULL
+        GROUP BY 1, 2, 3, 4
+        ORDER BY 1, 2, 3, 4
+    """)
+
+    estado = {"ean": None, "cadenas": [], "por_prov": {}}
+    escritos = 0
+
+    def cerrar() -> None:
+        nonlocal escritos
+        idx = {c: i for i, c in enumerate(estado["cadenas"])}
+        provincias = {}
+        for iso, locales in estado["por_prov"].items():
+            filas = []
+            for clave in sorted(locales):
+                entrada = locales[clave]
+                plano: list[int] = []
+                for cadena, precio in sorted(entrada["c"].items(), key=lambda kv: kv[1]):
+                    plano.extend((idx[cadena], round(precio)))
+                filas.append([entrada["n"], plano])
+            provincias[iso] = filas
+        payload = {"b": estado["cadenas"], "z": provincias}
+        (destino / f"{estado['ean']}.json").write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        escritos += 1
+
+    while True:
+        lote = cur.fetchmany(200_000)
+        if not lote:
+            break
+        for ean, prov, loc, bandera, precio in lote:
+            if ean != estado["ean"]:
+                if estado["ean"] is not None:
+                    cerrar()
+                estado["ean"] = ean
+                estado["cadenas"] = []
+                estado["por_prov"] = {}
+            zona = zona_localidad(prov, loc)
+            if not zona:
+                continue
+            iso, clave_loc = zona
+            cadena = (bandera or "—").strip()
+            if cadena not in estado["cadenas"]:
+                estado["cadenas"].append(cadena)
+            entrada = estado["por_prov"].setdefault(iso, {}).setdefault(
+                clave_loc, {"n": nombre_localidad(loc), "c": {}}
+            )
+            previo = entrada["c"].get(cadena)
+            if previo is None or precio < previo:
+                entrada["c"][cadena] = precio
+
+    if estado["ean"] is not None:
+        cerrar()
+    return escritos
+
+
+def escribir_mas_baratos(con, eans: list[str], localidades: list[dict],
+                         productos: dict[str, dict], destino: Path) -> int:
+    """Los 30 precios más bajos de cada localidad, de menor a mayor."""
+    if not eans:
+        return 0
+    lista = ",".join("'" + e.replace("'", "") + "'" for e in eans)
+    filas = con.execute(f"""
+        WITH g AS (
+            SELECT provincia, localidad, ean,
+                   MIN(precio_lista) AS precio,
+                   arg_min(bandera, precio_lista) AS bandera,
+                   COUNT(DISTINCT suc_key) AS n
+            FROM '{PRECIOS_PARQUET.as_posix()}'
+            WHERE ean IN ({lista}) AND precio_lista > 0 AND localidad IS NOT NULL
+              AND provincia IS NOT NULL
+            GROUP BY 1, 2, 3
+        ), r AS (
+            SELECT *, row_number() OVER (
+                PARTITION BY provincia, localidad
+                ORDER BY precio ASC, n DESC, ean
+            ) AS rk
+            FROM g
+        )
+        SELECT provincia, localidad, ean, precio, bandera, n, rk
+        FROM r WHERE rk <= 30
+        ORDER BY 1, 2, rk
+    """).fetchall()
+
+    indice = {(l["iso"], clave_localidad(l["nombre"])): l for l in localidades}
+    agrupado: dict[str, dict] = {}
+    for prov, loc, ean, precio, bandera, n, _ in filas:
+        zona = zona_localidad(prov, loc)
+        if not zona:
+            continue
+        iso, clave_loc = zona
+        entrada = indice.get((iso, clave_loc))
+        if not entrada:
+            continue
+        datos = agrupado.setdefault(entrada["id"], {
+            "n": entrada["nombre"],
+            "iso": iso,
+            "provincia": PROVINCIAS[iso],
+            "p": [],
+        })
+        p = productos.get(ean)
+        if not p:
+            continue
+        datos["p"].append([
+            ean,
+            corto(p["nombre"], 64),
+            (p["marca_limpia"] or "").title(),
+            round(precio),
+            (bandera or "—").strip(),
+            n,
+        ])
+
+    # Al fusionar localidades puede haber repetidos: se conserva el más barato.
+    for datos in agrupado.values():
+        unicos: dict[str, list] = {}
+        for fila in datos["p"]:
+            previo = unicos.get(fila[0])
+            if previo is None or fila[3] < previo[3]:
+                unicos[fila[0]] = fila
+        datos["p"] = sorted(unicos.values(), key=lambda f: (f[3], -f[5], f[0]))[:30]
+
+    destino.mkdir(parents=True, exist_ok=True)
+    for ident, datos in agrupado.items():
+        (destino / f"{ident}.json").write_text(
+            json.dumps(datos, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    return len(agrupado)
+
+
 # ---------- render ----------
 
 def main() -> None:
@@ -144,11 +399,14 @@ def main() -> None:
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    env.globals["adsense"] = ADSENSE_CLIENT
 
     con = duckdb.connect()
     productos, seleccion, fecha = cargar(con)
     eans = [p["ean"] for p in seleccion]
     ofertas = cargar_ofertas(con, eans)
+    localidades = cargar_ubicaciones(con)
+    zonas = cargar_zonas(con, eans)
 
     total_sucursales = con.execute(
         f"SELECT COUNT(DISTINCT suc_key) FROM '{PRECIOS_PARQUET.as_posix()}'"
@@ -293,6 +551,20 @@ def main() -> None:
             "n": len(v),
         } for b, v in sorted(por_cadena.items(), key=lambda kv: min(kv[1]))]
 
+        prov_ctx = []
+        for iso, filas_iso in zonas.get(p["ean"], {}).items():
+            barato = filas_iso[0]
+            prov_ctx.append({
+                "iso": iso,
+                "nombre": PROVINCIAS[iso],
+                "slug": slug_provincia(iso),
+                "precio_fmt": ars(barato["precio"]),
+                "bandera": barato["bandera"],
+                "localidad": barato["localidad"],
+                "n": sum(r["n"] for r in filas_iso),
+            })
+        prov_ctx.sort(key=lambda r: r["nombre"])
+
         pmin, pmax = p["precio_min"], p["precio_max"]
         dif = (pmax or 0) - (pmin or 0)
         pct = (dif / pmin * 100) if pmin else 0
@@ -358,10 +630,96 @@ def main() -> None:
             ofertas=mostrar,
             ofertas_restantes=len(ops) > len(mostrar),
             por_cadena=cadena_ctx,
+            provincias=prov_ctx,
             parrafo=parrafo,
             similares=similares,
             jsonld=jsonld,
         ), encoding="utf-8")
+
+    # --- zonas: precios por provincia y por localidad ---
+    zona_dir = DIST / "precios" / "zona"
+    zona_dir.mkdir(parents=True, exist_ok=True)
+
+    stats_prov: dict[str, dict] = {}
+    for l in localidades:
+        s = stats_prov.setdefault(l["iso"], {"n_sucursales": 0, "localidades": []})
+        s["n_sucursales"] += l["n"]
+        s["localidades"].append(l)
+
+    por_provincia: dict[str, list[tuple]] = {}
+    for ean, por_iso in zonas.items():
+        for iso, filas_iso in por_iso.items():
+            total_n = sum(r["n"] for r in filas_iso)
+            por_provincia.setdefault(iso, []).append((total_n, filas_iso[0]["precio"], ean))
+    for lista in por_provincia.values():
+        # de menor a mayor precio; a igual precio, el que está en más sucursales
+        lista.sort(key=lambda t: (t[1], -t[0], t[2]))
+
+    prov_ctx = []
+    for iso, nombre in PROVINCIAS.items():
+        s = stats_prov.get(iso)
+        if not s:
+            continue
+        s["localidades"].sort(key=lambda l: (-l["n"], l["nombre"]))
+        prov_ctx.append({
+            "iso": iso,
+            "nombre": nombre,
+            "slug": slug_provincia(iso),
+            "n_sucursales": s["n_sucursales"],
+            "n_localidades": len(s["localidades"]),
+            "n_productos": len(por_provincia.get(iso, [])),
+            "localidades": s["localidades"],
+        })
+    prov_ctx.sort(key=lambda p: p["nombre"])
+
+    (zona_dir / "index.html").write_text(env.get_template("zona.html").render(
+        **ctx_base,
+        ruta="/precios/zona/",
+        titulo="Precios por zona — Menor Precio",
+        descripcion=("Precios de supermercados en cada provincia y localidad de "
+                     "Argentina, con las cadenas y sucursales más baratas."),
+        provincias=prov_ctx,
+    ), encoding="utf-8")
+
+    for prov in prov_ctx:
+        top = []
+        for _, precio, ean in por_provincia.get(prov["iso"], [])[:30]:
+            p = por_ean.get(ean)
+            if not p:
+                continue
+            top.append({
+                "ean": ean,
+                "nombre_corto": corto(p["nombre"], 70),
+                "marca": (p["marca_limpia"] or "").title(),
+                "precio_fmt": ars(precio),
+                "categoria": NOMBRES_CATEGORIA.get(p["categoria"], "Otros"),
+            })
+        destino = zona_dir / prov["slug"]
+        destino.mkdir(parents=True, exist_ok=True)
+        (destino / "index.html").write_text(env.get_template("provincia.html").render(
+            **ctx_base,
+            ruta=f"/precios/zona/{prov['slug']}/",
+            titulo=f"Precios en {prov['nombre']} — Menor Precio",
+            descripcion=(f"Los 30 precios más bajos de supermercados en {prov['nombre']}: "
+                         f"{prov['n_sucursales']} sucursales en {prov['n_localidades']} localidades."),
+            provincia=prov,
+            productos=top,
+        ), encoding="utf-8")
+
+    datos_dir = DIST / "datos"
+    datos_dir.mkdir(parents=True, exist_ok=True)
+    (datos_dir / "localidades.json").write_text(json.dumps({
+        "provincias": PROVINCIAS,
+        "slugs": {iso: slug_provincia(iso) for iso in PROVINCIAS},
+        "localidades": [
+            [l["nombre"], l["iso"], l["id"], round(l["lat"], 4), round(l["lng"], 4),
+             1 if l["repetida"] else 0, l["alias"]]
+            for l in localidades
+        ],
+    }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+    n_zonas = escribir_zonas_locales(con, eans, datos_dir / "zona")
+    n_loc = escribir_mas_baratos(con, eans, localidades, por_ean, datos_dir / "localidad")
 
     # --- buscador ---
     indices: dict[str, list] = {}
@@ -388,6 +746,12 @@ def main() -> None:
         f"User-agent: *\nAllow: /\nSitemap: {BASE_URL}/sitemap.xml\n", encoding="utf-8"
     )
 
+    if ADSENSE_CLIENT:
+        pub = ADSENSE_CLIENT.replace("ca-", "")
+        (DIST / "ads.txt").write_text(
+            f"google.com, {pub}, DIRECT, f08c47fec0942fa0\n", encoding="utf-8"
+        )
+
     (DIST / "_headers").write_text(
         "/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n\n"
         "/datos/*\n  Cache-Control: public, max-age=3600\n\n"
@@ -395,8 +759,10 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    urls = ["/", "/precios/", "/precios/como-funciona/", "/privacidad.html", "/contacto.html"]
+    urls = ["/", "/precios/", "/precios/zona/", "/precios/como-funciona/",
+            "/privacidad.html", "/contacto.html"]
     urls += [f"/precios/{c['slug']}/" for c in categorias_ctx]
+    urls += [f"/precios/zona/{p['slug']}/" for p in prov_ctx]
     urls += [f"/precios/producto/{e}/" for e in eans]
     sitemap = ['<?xml version="1.0" encoding="UTF-8"?>',
                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
@@ -407,6 +773,7 @@ def main() -> None:
 
     print(f"Portada, {len(categorias_ctx)} categorías, {len(eans)} fichas, "
           f"{len(indices)} índices de búsqueda")
+    print(f"{len(prov_ctx)} provincias, {n_loc} zonas con precios, {n_zonas} fichas con datos locales")
     print(f"Salida: {DIST}")
 
 

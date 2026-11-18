@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<nav class="migas contenedor" aria-label="Ruta">
+  <a href="/">Inicio</a> › <a href="/precios/">Precios</a> › Zonas
+</nav>
+
+<article class="contenedor ficha">
+  <header class="cabecera-seccion">
+    <h1>Precios por zona</h1>
+    <p class="bajada">
+      Elegí una provincia para ver los 30 precios más bajos y las localidades
+      relevadas. Si preferís, escribí tu localidad en el buscador de arriba y
+      cada ficha de producto te muestra los precios de tu zona.
+    </p>
+  </header>
+
+  <div class="grilla-categorias">
+    {% for p in provincias %}
+    <a class="tarjeta-categoria" href="/precios/zona/{{ p.slug }}/">
+      <span class="cat-nombre">{{ p.nombre }}</span>
+      <span class="cat-dato">{{ p.n_sucursales }} sucursales · {{ p.n_localidades }} localidades</span>
+    </a>
+    {% endfor %}
+  </div>
+</article>
+{% endblock %}

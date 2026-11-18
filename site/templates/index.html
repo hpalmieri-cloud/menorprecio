@@ -13,7 +13,15 @@
       <input id="q" type="search" placeholder="Ej.: leche entera, yerba, detergente…" autocomplete="off">
       <div id="resultados" class="resultados" hidden></div>
     </form>
-    <p class="pista">O mirá los <a href="#categorias">precios por categoría</a>.</p>
+    <p class="pista">O mirá los <a href="#categorias">precios por categoría</a> o los <a href="/precios/zona/">precios de tu zona</a>.</p>
+  </div>
+</section>
+
+<section class="seccion" id="panel-localidad" data-fecha="{{ fecha_larga }}" hidden>
+  <div class="contenedor">
+    <h2 id="panel-localidad-titulo">Precios en tu zona</h2>
+    <div class="grilla-productos" id="panel-localidad-cuerpo"></div>
+    <p class="nota-campo" id="panel-localidad-pie"></p>
   </div>
 </section>
 

@@ -98,10 +98,11 @@ pipeline/
   config.py     rutas, URL del volcado y límites de sanidad
   ingest.py     descarga el ZIP diario, extrae y normaliza a parquet
   productos.py  arma el maestro de productos y asigna categorías
+  ubicaciones.py provincias ISO y normalización de localidades
   build.py      genera el sitio estático (HTML, JSON, sitemap)
 site/
   templates/    plantillas Jinja2
-  static/       CSS, JS del buscador y favicon
+  static/       CSS, JS del buscador, JS de zonas y favicon
 .github/
   workflows/
     actualizar.yml   pipeline manual (sin cron)
@@ -117,6 +118,14 @@ tools/          uv, Python, Node y wrangler portátiles (no se versiona)
 - 3.000 fichas de producto seleccionadas por disponibilidad
   (`n_cadenas >= 4`, fuera códigos internos) con cuota de 500 por categoría.
 - 15 páginas de categoría, hub `/precios/`, portada con buscador.
+- Buscador de zona: autocompletado de **433 localidades** desde 3 letras (con
+  la provincia cuando el nombre se repite), geolocalización del navegador y
+  preferencia guardada en `localStorage`.
+- Cada ficha muestra el precio por cadena en cada una de las 24 provincias.
+- `/precios/zona/` y una página por provincia con los 30 precios más bajos.
+- Los precios por localidad y cadena se cargan aparte, desde
+  `/datos/zona/<ean>.json`, solo cuando hay una zona elegida: la ficha no
+  engorda y el visitante sin zona no descarga nada extra.
 - Índices de búsqueda por letra en `/datos/indice/*.json`.
 - Resto del catálogo accesible por búsqueda, sin ficha propia.
 
@@ -172,8 +181,8 @@ El resultado queda en `dist/`. Para verlo:
 
 ## Publicación
 
-Sitio publicado: **https://menorprecio.pages.dev** (proyecto de Pages
-`menorprecio`).
+Sitio publicado: **https://menorprecio.com.ar** (proyecto de Pages
+`menorprecio`, también accesible en `menorprecio.pages.dev`).
 
 ### Por qué no lo actualiza GitHub Actions
 
@@ -235,12 +244,16 @@ no recibe tráfico, pero sigue existiendo por si hace falta volver atrás.
 
 ## Monetización
 
-Pendiente: el dominio necesita su propia revisión de AdSense (el alta de la
-versión anterior no se hereda). Cuando esté aprobado hay que agregar:
+Cableado listo, falta el ID de editor. En `pipeline/config.py`:
 
-- el script de AdSense en `site/templates/base.html`;
-- `ads.txt` en `dist/` (o en `site/static/` para que lo copie el build);
-- un bloque de consentimiento si se activa publicidad personalizada.
+```python
+ADSENSE_CLIENT = ""   # "ca-pub-1234567890123456" cuando esté aprobado
+```
+
+Con el ID cargado, el build inyecta el script en el `<head>` de todas las
+páginas y genera `ads.txt` con la línea de Google. Con el valor vacío no se
+publica nada. Antes de activar anuncios personalizados conviene sumar un aviso
+de consentimiento de cookies.
 
 ---
 

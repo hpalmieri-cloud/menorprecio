@@ -32,3 +32,6 @@ PRECIO_MAXIMO = 5_000_000.0
 
 # Cuántas fichas de producto se publican en el MVP.
 FICHAS_MVP = 3000
+
+# ID de editor de AdSense ("ca-pub-..."). Vacío = sin anuncios ni ads.txt.
+ADSENSE_CLIENT = ""
