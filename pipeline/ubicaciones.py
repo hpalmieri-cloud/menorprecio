@@ -46,6 +46,10 @@ ALIAS_LOCALIDAD = {
     "autonoma de buenos aires": "ciudad de buenos aires",
 }
 
+# El SEPA también informa «CIUDAD AUTONOMA BUENOS AIRES» sin «de», «Cdad. de
+# Bs.As» y variantes con el número de sucursal entre paréntesis.
+VARIANTE_CABA = re.compile(r"^(ciudad|cdad)( autonoma)?( de)? (buenos aires|bs as)$")
+
 # Nombre con el que se muestra una clave normalizada.
 NOMBRE_CANONICO = {
     "ciudad de buenos aires": "Ciudad de Buenos Aires",
@@ -66,7 +70,17 @@ def clave_localidad(texto: str) -> str:
     """Clave de comparación: sin acentos, minúsculas, espacios simples."""
     limpio = re.sub(r"[^a-z0-9 ]+", " ", sin_acentos(texto).lower())
     limpio = re.sub(r"\s+", " ", limpio).strip()
-    return ALIAS_LOCALIDAD.get(limpio, limpio)
+    alias = ALIAS_LOCALIDAD.get(limpio)
+    if alias:
+        return alias
+    # «CIUDAD AUTONOMA DE BUENOS AIRES (901)»: el número es de la sucursal.
+    sin_numero = re.sub(r"\s+\d+$", "", limpio)
+    alias = ALIAS_LOCALIDAD.get(sin_numero)
+    if alias:
+        return alias
+    if VARIANTE_CABA.match(sin_numero):
+        return "ciudad de buenos aires"
+    return limpio
 
 
 def titulo_localidad(texto: str) -> str:

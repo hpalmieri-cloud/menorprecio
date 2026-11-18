@@ -34,4 +34,4 @@ PRECIO_MAXIMO = 5_000_000.0
 FICHAS_MVP = 3000
 
 # ID de editor de AdSense ("ca-pub-..."). Vacío = sin anuncios ni ads.txt.
-ADSENSE_CLIENT = ""
+ADSENSE_CLIENT = "ca-pub-1989926070258685"

@@ -118,16 +118,21 @@ tools/          uv, Python, Node y wrangler portátiles (no se versiona)
 - 3.000 fichas de producto seleccionadas por disponibilidad
   (`n_cadenas >= 4`, fuera códigos internos) con cuota de 500 por categoría.
 - 15 páginas de categoría, hub `/precios/`, portada con buscador.
-- Buscador de zona: autocompletado de **433 localidades** desde 3 letras (con
+- Buscador de zona: autocompletado de **432 localidades** desde 3 letras (con
   la provincia cuando el nombre se repite), geolocalización del navegador y
   preferencia guardada en `localStorage`.
+- Con una zona elegida, el buscador de productos filtra a los que se venden en
+  esa localidad y muestra el precio y el comercio de ahí; si el producto no
+  está, ofrece verlo en todo el país.
 - Cada ficha muestra el precio por cadena en cada una de las 24 provincias.
 - `/precios/zona/` y una página por provincia con los 30 precios más bajos.
 - Los precios por localidad y cadena se cargan aparte, desde
-  `/datos/zona/<ean>.json`, solo cuando hay una zona elegida: la ficha no
-  engorda y el visitante sin zona no descarga nada extra.
+  `/datos/zona/<ean>.json` y `/datos/localidad/<id>.json`, solo cuando hay una
+  zona elegida: la ficha no engorda y el visitante sin zona no descarga nada
+  extra.
 - Índices de búsqueda por letra en `/datos/indice/*.json`.
-- Resto del catálogo accesible por búsqueda, sin ficha propia.
+- Los índices del buscador cubren esas mismas 3.000 fichas: todo resultado
+  tiene página propia.
 
 ---
 

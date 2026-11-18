@@ -5,7 +5,7 @@ import json
 import re
 import shutil
 import unicodedata
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import duckdb
@@ -312,78 +312,135 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
     return escritos
 
 
-def escribir_mas_baratos(con, eans: list[str], localidades: list[dict],
+def escribir_localidades(con, eans: list[str], localidades: list[dict],
                          productos: dict[str, dict], destino: Path) -> int:
-    """Los 30 precios más bajos de cada localidad, de menor a mayor."""
+    """Un JSON por localidad con el precio de cada producto disponible.
+
+    Incluye los 30 más baratos (para la portada) y, aparte, el precio mínimo
+    de todos los productos de la zona, que usa el buscador para responder
+    «cuánto sale X en mi localidad».
+    """
     if not eans:
         return 0
     lista = ",".join("'" + e.replace("'", "") + "'" for e in eans)
-    filas = con.execute(f"""
-        WITH g AS (
+    precios = f"'{PRECIOS_PARQUET.as_posix()}'"
+
+    # Mapa (provincia, localidad tal como viene) -> zona normalizada.
+    pares = con.execute(f"""
+        SELECT DISTINCT provincia, localidad
+        FROM {precios}
+        WHERE ean IN ({lista}) AND precio_lista > 0
+          AND localidad IS NOT NULL AND provincia IS NOT NULL
+    """).fetchall()
+    con.execute("""
+        CREATE TEMP TABLE zona_mapa (
+            provincia VARCHAR, localidad VARCHAR, iso VARCHAR, clave VARCHAR
+        )
+    """)
+    mapa_filas = []
+    for prov, loc in pares:
+        z = zona_localidad(prov, loc)
+        if z:
+            mapa_filas.append((prov, loc, z[0], z[1]))
+    if mapa_filas:
+        con.executemany("INSERT INTO zona_mapa VALUES (?, ?, ?, ?)", mapa_filas)
+
+    cur = con.execute(f"""
+        SELECT m.iso, m.clave, g.ean, g.precio, g.bandera, g.n
+        FROM (
             SELECT provincia, localidad, ean,
                    MIN(precio_lista) AS precio,
                    arg_min(bandera, precio_lista) AS bandera,
                    COUNT(DISTINCT suc_key) AS n
-            FROM '{PRECIOS_PARQUET.as_posix()}'
-            WHERE ean IN ({lista}) AND precio_lista > 0 AND localidad IS NOT NULL
-              AND provincia IS NOT NULL
+            FROM {precios}
+            WHERE ean IN ({lista}) AND precio_lista > 0
+              AND localidad IS NOT NULL AND provincia IS NOT NULL
             GROUP BY 1, 2, 3
-        ), r AS (
-            SELECT *, row_number() OVER (
-                PARTITION BY provincia, localidad
-                ORDER BY precio ASC, n DESC, ean
-            ) AS rk
-            FROM g
-        )
-        SELECT provincia, localidad, ean, precio, bandera, n, rk
-        FROM r WHERE rk <= 30
-        ORDER BY 1, 2, rk
-    """).fetchall()
+        ) g
+        JOIN zona_mapa m USING (provincia, localidad)
+        ORDER BY 1, 2, 4, 3
+    """)
 
     indice = {(l["iso"], clave_localidad(l["nombre"])): l for l in localidades}
-    agrupado: dict[str, dict] = {}
-    for prov, loc, ean, precio, bandera, n, _ in filas:
-        zona = zona_localidad(prov, loc)
-        if not zona:
-            continue
-        iso, clave_loc = zona
+    destino.mkdir(parents=True, exist_ok=True)
+
+    estado = {"zona": None, "cadenas": [], "idx": {}, "filas": []}
+    escritos = 0
+
+    def cerrar() -> None:
+        nonlocal escritos
+        if estado["zona"] is None:
+            return
+        iso, clave_loc = estado["zona"]
         entrada = indice.get((iso, clave_loc))
         if not entrada:
-            continue
-        datos = agrupado.setdefault(entrada["id"], {
+            return
+        # Al fusionar variantes de una misma localidad puede haber repetidos:
+        # como vienen ordenados por precio, el primero es el más barato.
+        filas: list[tuple] = []
+        vistos: set[str] = set()
+        for ean, precio, idx, n in estado["filas"]:
+            if ean in vistos:
+                continue
+            vistos.add(ean)
+            filas.append((ean, precio, idx, n))
+
+        cadenas = estado["cadenas"]
+        plano: list = []
+        for ean, precio, idx, _ in filas:
+            plano.extend((ean, precio, idx))
+
+        top = []
+        for ean, precio, idx, n in filas:
+            p = productos.get(ean)
+            if not p:
+                continue
+            top.append([
+                ean,
+                corto(p["nombre"], 64),
+                (p["marca_limpia"] or "").title(),
+                precio,
+                cadenas[idx],
+                n,
+            ])
+            if len(top) >= 30:
+                break
+
+        payload = {
             "n": entrada["nombre"],
             "iso": iso,
             "provincia": PROVINCIAS[iso],
-            "p": [],
-        })
-        p = productos.get(ean)
-        if not p:
-            continue
-        datos["p"].append([
-            ean,
-            corto(p["nombre"], 64),
-            (p["marca_limpia"] or "").title(),
-            round(precio),
-            (bandera or "—").strip(),
-            n,
-        ])
-
-    # Al fusionar localidades puede haber repetidos: se conserva el más barato.
-    for datos in agrupado.values():
-        unicos: dict[str, list] = {}
-        for fila in datos["p"]:
-            previo = unicos.get(fila[0])
-            if previo is None or fila[3] < previo[3]:
-                unicos[fila[0]] = fila
-        datos["p"] = sorted(unicos.values(), key=lambda f: (f[3], -f[5], f[0]))[:30]
-
-    destino.mkdir(parents=True, exist_ok=True)
-    for ident, datos in agrupado.items():
-        (destino / f"{ident}.json").write_text(
-            json.dumps(datos, ensure_ascii=False, separators=(",", ":")),
+            "c": cadenas,
+            "p": top,
+            "t": plano,
+        }
+        (destino / f"{entrada['id']}.json").write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
             encoding="utf-8",
         )
-    return len(agrupado)
+        escritos += 1
+
+    while True:
+        lote = cur.fetchmany(200_000)
+        if not lote:
+            break
+        for iso, clave_loc, ean, precio, bandera, n in lote:
+            if (iso, clave_loc) != estado["zona"]:
+                cerrar()
+                estado["zona"] = (iso, clave_loc)
+                estado["cadenas"] = []
+                estado["idx"] = {}
+                estado["filas"] = []
+            cadena = (bandera or "—").strip()
+            idx = estado["idx"].get(cadena)
+            if idx is None:
+                idx = len(estado["cadenas"])
+                estado["cadenas"].append(cadena)
+                estado["idx"][cadena] = idx
+            estado["filas"].append((ean, round(precio), idx, n))
+
+    cerrar()
+    return escritos
 
 
 # ---------- render ----------
@@ -414,6 +471,7 @@ def main() -> None:
 
     ctx_base = {
         "fecha_larga": fecha_larga(fecha),
+        "version": datetime.now().strftime("%Y%m%d%H%M"),
         "total_productos": f"{len(productos):,}".replace(",", "."),
         "total_sucursales": f"{total_sucursales:,}".replace(",", "."),
     }
@@ -719,11 +777,11 @@ def main() -> None:
     }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     n_zonas = escribir_zonas_locales(con, eans, datos_dir / "zona")
-    n_loc = escribir_mas_baratos(con, eans, localidades, por_ean, datos_dir / "localidad")
+    n_loc = escribir_localidades(con, eans, localidades, por_ean, datos_dir / "localidad")
 
     # --- buscador ---
     indices: dict[str, list] = {}
-    for p in productos:
+    for p in seleccion:
         letra = slug_letra(p["nombre"])
         indices.setdefault(letra, []).append([
             p["ean"],

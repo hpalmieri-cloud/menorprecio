@@ -11,9 +11,11 @@
   <meta property="og:type" content="website">
   <meta property="og:locale" content="es_AR">
   <meta name="theme-color" content="#12496b">
+  <meta name="mp-version" content="{{ version }}">
   <link rel="icon" href="/assets/favicon.svg">
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v={{ version }}">
   {% if adsense %}
+  <meta name="google-adsense-account" content="{{ adsense }}">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense }}" crossorigin="anonymous"></script>
   {% endif %}
   {% block head %}{% endblock %}
@@ -66,7 +68,7 @@
       </nav>
     </div>
   </footer>
-  <script src="/assets/zona.js" defer></script>
+  <script src="/assets/zona.js?v={{ version }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -11,6 +11,11 @@
   const gps = document.getElementById("zona-gps");
   const estado = document.getElementById("zona-estado");
 
+  // Los datos cambian con cada relevamiento y los assets se sirven inmutables:
+  // el sufijo de versión evita quedarse con una copia vieja en el CDN.
+  const meta = document.querySelector('meta[name="mp-version"]');
+  const sufijo = meta && meta.content ? `?v=${encodeURIComponent(meta.content)}` : "";
+
   let datos = null;
   let cargando = null;
   let provincias = {};
@@ -31,7 +36,7 @@
   function cargar() {
     if (datos) return Promise.resolve(datos);
     if (!cargando) {
-      cargando = fetch("/datos/localidades.json")
+      cargando = fetch(`/datos/localidades.json${sufijo}`)
         .then((r) => (r.ok ? r.json() : { localidades: [] }))
         .then((d) => {
           datos = d.localidades || [];
@@ -136,6 +141,8 @@
 
   function aplicar(zona) {
     marcarProvincia(zona.iso);
+    // El buscador de productos escucha este aviso para filtrar por la zona.
+    document.dispatchEvent(new CustomEvent("mp:zona", { detail: zona }));
     const ficha = document.getElementById("panel-zona");
     if (ficha) {
       pintarFicha(zona, ficha);
@@ -155,7 +162,7 @@
 
     let d = null;
     try {
-      const r = await fetch(`/datos/zona/${panel.dataset.ean}.json`);
+      const r = await fetch(`/datos/zona/${panel.dataset.ean}.json${sufijo}`);
       if (r.ok) d = await r.json();
     } catch (e) { /* sin datos locales */ }
 
@@ -222,7 +229,7 @@
     cuerpo.innerHTML = '<p class="nota-campo">Buscando precios en tu zona…</p>';
     if (pie) pie.textContent = "";
     try {
-      const r = await fetch(`/datos/localidad/${zona.id}.json`);
+      const r = await fetch(`/datos/localidad/${zona.id}.json${sufijo}`);
       if (!r.ok) throw new Error("sin datos");
       const d = await r.json();
       if (!d.p || !d.p.length) throw new Error("vacio");

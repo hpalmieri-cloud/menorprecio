@@ -145,6 +145,19 @@ a { color: var(--azul); }
 .resultados a:last-child { border-bottom: 0; }
 .resultados a:hover { background: var(--azul-claro); }
 .resultados .r-precio { color: var(--verde); font-weight: 600; white-space: nowrap; }
+.resultados .r-zona {
+  padding: .45rem .9rem; font-size: .76rem; letter-spacing: .03em;
+  text-transform: uppercase; color: var(--azul); background: var(--azul-claro);
+  border-bottom: 1px solid var(--borde);
+}
+.resultados .r-cadena { color: var(--tinta-suave); }
+.resultados .r-pais {
+  display: block; margin-top: .55rem; padding: .3rem .7rem;
+  font: inherit; font-size: .82rem; color: var(--azul); cursor: pointer;
+  background: #fff; border: 1px solid var(--borde); border-radius: 999px;
+}
+.resultados .r-pais:hover { background: var(--azul-claro); border-color: var(--azul); }
+.oculto-busqueda { display: none !important; }
 .resultados .vacio { padding: .9rem; color: var(--tinta-suave); }
 .pista { font-size: .9rem; color: var(--tinta-suave); margin-top: .9rem; }
 
