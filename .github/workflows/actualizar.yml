@@ -39,9 +39,9 @@ jobs:
       - name: Generar sitio
         run: python pipeline/build.py
 
-      - name: Publicar en Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+      - name: Publicar el sitio como artefacto
+        uses: actions/upload-artifact@v4
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=menorprecio --branch=main
+          name: sitio
+          path: dist
+          retention-days: 7
