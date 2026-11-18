@@ -207,6 +207,10 @@ setx CLOUDFLARE_API_TOKEN "<token con permiso Cloudflare Pages: Edit>"
 setx CLOUDFLARE_ACCOUNT_ID "<account id>"
 ```
 
+El token se crea en *Mi perfil → Tokens de API* con un único permiso
+(`Cuenta → Cloudflare Pages → Editar`) y **sin vencimiento**; si se filtra,
+basta con revocarlo y reemplazar la variable de usuario.
+
 Para una actualización manual:
 
 ```powershell
