@@ -251,7 +251,7 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
     lista = ",".join("'" + e.replace("'", "") + "'" for e in eans)
     destino.mkdir(parents=True, exist_ok=True)
     cur = con.execute(f"""
-        SELECT ean, provincia, localidad, bandera, MIN(precio_lista)
+        SELECT ean, provincia, localidad, bandera, MIN(precio_lista), COUNT(DISTINCT suc_key)
         FROM '{PRECIOS_PARQUET.as_posix()}'
         WHERE ean IN ({lista}) AND precio_lista > 0
           AND localidad IS NOT NULL AND provincia IS NOT NULL
@@ -273,7 +273,7 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
                 plano: list[int] = []
                 for cadena, precio in sorted(entrada["c"].items(), key=lambda kv: kv[1]):
                     plano.extend((idx[cadena], round(precio)))
-                filas.append([entrada["n"], plano])
+                filas.append([entrada["n"], plano, entrada["suc"]])
             provincias[iso] = filas
         payload = {"b": estado["cadenas"], "z": provincias}
         (destino / f"{estado['ean']}.json").write_text(
@@ -286,7 +286,7 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
         lote = cur.fetchmany(200_000)
         if not lote:
             break
-        for ean, prov, loc, bandera, precio in lote:
+        for ean, prov, loc, bandera, precio, sucursales in lote:
             if ean != estado["ean"]:
                 if estado["ean"] is not None:
                     cerrar()
@@ -301,8 +301,9 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
             if cadena not in estado["cadenas"]:
                 estado["cadenas"].append(cadena)
             entrada = estado["por_prov"].setdefault(iso, {}).setdefault(
-                clave_loc, {"n": nombre_localidad(loc), "c": {}}
+                clave_loc, {"n": nombre_localidad(loc), "c": {}, "suc": 0}
             )
+            entrada["suc"] += sucursales
             previo = entrada["c"].get(cadena)
             if previo is None or precio < previo:
                 entrada["c"][cadena] = precio
@@ -669,10 +670,10 @@ def main() -> None:
         (destino / "index.html").write_text(env.get_template("producto.html").render(
             **ctx_base,
             ruta=f"/precios/producto/{p['ean']}/",
-            titulo=f"{corto(p['nombre'], 60)} — precio desde {ars(pmin)} | Menor Precio",
-            descripcion=(f"Precio de {corto(p['nombre'], 70).lower()} en Argentina: "
-                         f"desde {ars(pmin)} hasta {ars(pmax)} en {p['n_sucursales']} sucursales. "
-                         f"Comparado por cadena al {fecha_larga(fecha)}."),
+            titulo=f"{corto(p['nombre'], 60)} — precios por cadena y localidad | Menor Precio",
+            descripcion=(f"Precios de {corto(p['nombre'], 70).lower()} en supermercados de "
+                         f"Argentina, comparables por cadena, provincia y localidad. "
+                         f"Datos del SEPA al {fecha_larga(fecha)}."),
             ean=p["ean"],
             nombre=corto(p["nombre"], 90),
             marca=p["marca_limpia"] or p["marca"] or "",

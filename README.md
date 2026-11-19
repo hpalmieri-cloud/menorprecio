@@ -121,9 +121,13 @@ tools/          uv, Python, Node y wrangler portátiles (no se versiona)
 - Buscador de zona: autocompletado de **432 localidades** desde 3 letras (con
   la provincia cuando el nombre se repite), geolocalización del navegador y
   preferencia guardada en `localStorage`.
-- Con una zona elegida, el buscador de productos filtra a los que se venden en
+- Con una zona elegida, la búsqueda de productos filtra a los que se venden en
   esa localidad y muestra el precio y el comercio de ahí; si el producto no
   está, ofrece verlo en todo el país.
+- Con zona elegida, la ficha y los listados muestran **solo precios de esa
+  localidad**: se ocultan el resumen nacional, las sucursales de otras
+  localidades y la tabla por provincia, y las tarjetas sin precio local dicen
+  «No está en tu zona». Un botón vuelve a la vista de todo el país.
 - Cada ficha muestra el precio por cadena en cada una de las 24 provincias.
 - `/precios/zona/` y una página por provincia con los 30 precios más bajos.
 - Los precios por localidad y cadena se cargan aparte, desde

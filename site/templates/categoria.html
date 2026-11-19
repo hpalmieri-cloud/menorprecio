@@ -8,7 +8,7 @@
 <header class="contenedor cabecera-seccion">
   <h1>Precios de {{ nombre | lower }}</h1>
   <p class="bajada">
-    {{ n_productos }} productos relevados en {{ total_sucursales }} sucursales.
+    {{ n_productos }} productos relevados<span class="solo-pais"> en {{ total_sucursales }} sucursales</span>.
     Ordenados por cantidad de locales donde se consiguen.
   </p>
 </header>
@@ -20,19 +20,19 @@
         <tr>
           <th>Producto</th>
           <th>Marca</th>
-          <th class="num">Desde</th>
-          <th class="num">Mediana</th>
-          <th class="num">Sucursales</th>
+          <th class="num"><span class="solo-pais">Desde</span><span class="solo-zona">En tu zona</span></th>
+          <th class="num solo-pais">Mediana</th>
+          <th class="num solo-pais">Sucursales</th>
         </tr>
       </thead>
       <tbody>
         {% for p in productos %}
-        <tr>
+        <tr data-ean="{{ p.ean }}">
           <td><a href="/precios/producto/{{ p.ean }}/">{{ p.nombre_corto }}</a></td>
           <td>{{ p.marca or "—" }}</td>
-          <td class="num">{{ p.precio_min_fmt }}</td>
-          <td class="num">{{ p.precio_mediana_fmt }}</td>
-          <td class="num">{{ p.n_sucursales }}</td>
+          <td class="num" data-precio>{{ p.precio_min_fmt }}</td>
+          <td class="num solo-pais">{{ p.precio_mediana_fmt }}</td>
+          <td class="num solo-pais">{{ p.n_sucursales }}</td>
         </tr>
         {% endfor %}
       </tbody>

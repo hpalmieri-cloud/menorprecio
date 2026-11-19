@@ -9,7 +9,7 @@
 <article class="contenedor ficha">
   <header class="ficha-cabecera">
     <h1>{{ nombre }}</h1>
-    <p class="ficha-meta">{% if marca and marca != 'SIN MARCA' %}{{ marca }} · {% endif %}EAN {{ ean }} · {{ n_sucursales }} sucursales de {{ n_cadenas }} {{ 'cadena' if n_cadenas == 1 else 'cadenas' }}</p>
+    <p class="ficha-meta">{% if marca and marca != 'SIN MARCA' %}{{ marca }} · {% endif %}EAN {{ ean }}<span class="solo-pais"> · {{ n_sucursales }} sucursales de {{ n_cadenas }} {{ 'cadena' if n_cadenas == 1 else 'cadenas' }}</span></p>
   </header>
 
   <section class="bloque panel-zona" id="panel-zona" data-ean="{{ ean }}" data-fecha="{{ fecha_larga }}" hidden>
@@ -17,7 +17,7 @@
     <div id="panel-zona-cuerpo"></div>
   </section>
 
-  <section class="panel-precios" aria-label="Resumen de precios">
+  <section class="panel-precios solo-pais" aria-label="Resumen de precios">
     <div class="dato">
       <span class="etiqueta">Más barato</span>
       <strong class="cifra destacada">{{ precio_min_fmt }}</strong>
@@ -36,7 +36,7 @@
     </div>
   </section>
 
-  <section class="bloque">
+  <section class="bloque solo-pais">
     <h2>Dónde está más barato</h2>
     <p class="nota-campo">
       Precios de lista informados al SEPA el {{ fecha_larga }}. Las promociones
@@ -78,7 +78,7 @@
     {% endif %}
   </section>
 
-  <section class="bloque">
+  <section class="bloque solo-pais">
     <h2>Precio por cadena</h2>
     <table class="tabla tabla-compacta">
       <thead>
@@ -98,7 +98,7 @@
   </section>
 
   {% if provincias %}
-  <section class="bloque" id="bloque-provincias">
+  <section class="bloque solo-pais" id="bloque-provincias">
     <h2>Precios por provincia</h2>
     <p class="nota-campo">
       Precio más bajo registrado en cada provincia, con la cadena y la localidad
@@ -124,7 +124,7 @@
   </section>
   {% endif %}
 
-  <section class="bloque texto">
+  <section class="bloque texto solo-pais">
     <h2>Qué dice el relevamiento</h2>
     <p>{{ parrafo }}</p>
   </section>

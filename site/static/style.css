@@ -254,6 +254,21 @@ a { color: var(--azul); }
 .zona-destacado strong { color: var(--verde); }
 .fila-zona { background: var(--azul-claro); }
 .fila-zona td { font-weight: 600; }
+
+/* ---------- con localidad elegida: solo datos de esa zona ---------- */
+body.con-zona .solo-pais { display: none !important; }
+.solo-zona { display: none; }
+body.con-zona .solo-zona { display: inline; }
+.panel-precios--zona { margin: 0 0 1rem; }
+.zona-acciones { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; }
+.zona-boton {
+  padding: .32rem .85rem; font: inherit; font-size: .82rem;
+  color: var(--azul); cursor: pointer;
+  background: #fff; border: 1px solid var(--borde); border-radius: 999px;
+}
+.zona-boton:hover { background: var(--azul-claro); border-color: var(--azul); }
+.precio-sin-zona { color: var(--tinta-suave); font-weight: 400; font-size: .85em; }
+.fila-sin-zona td { color: var(--tinta-suave); }
 .lista-localidades {
   display: flex; flex-wrap: wrap; gap: .45rem .7rem;
   margin: 0; padding: 0; list-style: none;

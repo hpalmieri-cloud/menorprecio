@@ -140,17 +140,114 @@
   }
 
   function aplicar(zona) {
+    document.body.classList.add("con-zona");
     marcarProvincia(zona.iso);
     // El buscador de productos escucha este aviso para filtrar por la zona.
     document.dispatchEvent(new CustomEvent("mp:zona", { detail: zona }));
     const ficha = document.getElementById("panel-zona");
-    if (ficha) {
-      pintarFicha(zona, ficha);
-      return;
-    }
+    if (ficha) pintarFicha(zona, ficha);
     const home = document.getElementById("panel-localidad");
     if (home) pintarLocalidad(zona, home);
+    localizarTarjetas(zona);
   }
+
+  // Un solo pedido por localidad, compartido por el panel y las tarjetas.
+  const cacheLocalidad = new Map();
+
+  function cargarLocalidad(id) {
+    if (!cacheLocalidad.has(id)) {
+      const p = fetch(`/datos/localidad/${encodeURIComponent(id)}.json${sufijo}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      cacheLocalidad.set(id, p);
+    }
+    return cacheLocalidad.get(id);
+  }
+
+  function mapaLocalidad(d) {
+    const cadenas = (d && d.c) || [];
+    const mapa = new Map();
+    const t = (d && d.t) || [];
+    for (let i = 0; i + 2 < t.length; i += 3) {
+      mapa.set(t[i], [t[i + 1], cadenas[t[i + 2]] || ""]);
+    }
+    return mapa;
+  }
+
+  function precioOriginal(el) {
+    if (el.dataset.pais === undefined) el.dataset.pais = el.textContent;
+    return el.dataset.pais;
+  }
+
+  // Mientras haya una localidad elegida, ninguna tarjeta muestra el precio
+  // mínimo del país: o el de la zona, o «no está en tu zona».
+  async function localizarTarjetas(zona) {
+    const d = await cargarLocalidad(zona.id);
+    if (!d) return;
+    const mapa = mapaLocalidad(d);
+    document.querySelectorAll('a[href^="/precios/producto/"]').forEach((a) => {
+      if (a.closest("#panel-localidad")) return;
+      const m = (a.getAttribute("href") || "").match(/\/precios\/producto\/(\d+)\//);
+      const precio = a.querySelector(".prod-precio");
+      if (!m || !precio) return;
+      const enZona = mapa.get(m[1]);
+      precioOriginal(precio);
+      if (enZona) {
+        precio.textContent = pesos(enZona[0]);
+        precio.classList.remove("precio-sin-zona");
+      } else {
+        precio.textContent = "No está en tu zona";
+        precio.classList.add("precio-sin-zona");
+      }
+    });
+
+    document.querySelectorAll("tr[data-ean]").forEach((tr) => {
+      const celda = tr.querySelector("[data-precio]");
+      if (!celda) return;
+      const enZona = mapa.get(tr.dataset.ean);
+      precioOriginal(celda);
+      if (enZona) {
+        celda.textContent = pesos(enZona[0]);
+        tr.classList.remove("fila-sin-zona");
+      } else {
+        celda.textContent = "No está en tu zona";
+        tr.classList.add("fila-sin-zona");
+      }
+    });
+  }
+
+  function quitarZona() {
+    try {
+      localStorage.removeItem(CLAVE);
+    } catch (e) { /* modo privado */ }
+    document.body.classList.remove("con-zona");
+    document.querySelectorAll("[data-pais]").forEach((el) => {
+      el.textContent = el.dataset.pais;
+      el.classList.remove("precio-sin-zona");
+      delete el.dataset.pais;
+    });
+    document.querySelectorAll(".fila-sin-zona").forEach((el) => el.classList.remove("fila-sin-zona"));
+    const ficha = document.getElementById("panel-zona");
+    if (ficha) ficha.hidden = true;
+    const home = document.getElementById("panel-localidad");
+    if (home) home.hidden = true;
+    input.value = "";
+    if (estado) estado.textContent = "";
+    document.dispatchEvent(new CustomEvent("mp:zona", { detail: null }));
+  }
+
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-zona-quitar]")) {
+      e.preventDefault();
+      quitarZona();
+      return;
+    }
+    if (e.target.closest("[data-zona-cambiar]")) {
+      e.preventDefault();
+      input.focus();
+      input.select();
+    }
+  });
 
   async function pintarFicha(zona, panel) {
     const cuerpo = document.getElementById("panel-zona-cuerpo");
@@ -162,61 +259,79 @@
 
     let d = null;
     try {
-      const r = await fetch(`/datos/zona/${panel.dataset.ean}.json${sufijo}`);
+      const r = await fetch(`/datos/zona/${encodeURIComponent(panel.dataset.ean)}.json${sufijo}`);
       if (r.ok) d = await r.json();
     } catch (e) { /* sin datos locales */ }
 
     const provincia = zona.iso && d && d.z ? d.z[zona.iso] : null;
-    let filas = null;
+    let fila = null;
     if (provincia) {
       const clave = norm(zona.nombre);
-      for (const [nombre, precios] of provincia) {
-        if (norm(nombre) === clave) {
-          filas = precios;
+      for (const f of provincia) {
+        if (norm(f[0]) === clave) {
+          fila = f;
           break;
         }
       }
     }
 
-    if (filas && filas.length) {
-      const cadena = (i) => (d && d.b[i]) || "—";
-      const pares = [];
-      for (let i = 0; i < filas.length; i += 2) {
-        pares.push([cadena(filas[i]), filas[i + 1]]);
-      }
-      pares.sort((a, b) => a[1] - b[1]);
-      const cuerpoTabla = pares
-        .map(([c, p]) => `<tr><td>${esc(c)}</td><td class="num">${pesos(p)}</td></tr>`)
-        .join("");
+    const acciones = `<div class="zona-acciones">
+      <button type="button" class="zona-boton" data-zona-cambiar>Cambiar de localidad</button>
+      <button type="button" class="zona-boton" data-zona-quitar>Ver precios de todo el país</button>
+    </div>`;
+
+    if (!fila || !fila[1] || !fila[1].length) {
       cuerpo.innerHTML = `
-        <p class="zona-destacado">Más barato: <strong>${pesos(pares[0][1])}</strong>
-          en <strong>${esc(pares[0][0])}</strong>.</p>
-        <table class="tabla tabla-compacta">
-          <thead><tr><th>Comercio</th><th class="num">Precio</th></tr></thead>
-          <tbody>${cuerpoTabla}</tbody>
-        </table>
-        <p class="nota-campo">Precios de lista informados al SEPA el
-          ${esc(panel.dataset.fecha)}.
-          <a href="/precios/zona/${esc(slugs[zona.iso] || "")}/">Ver todo en
-          ${esc(provincias[zona.iso] || "la provincia")}</a>.</p>`;
+        <p>No registramos este producto en ${esc(zona.nombre)}.</p>
+        <p class="nota-campo">Puede que el comercio no lo haya informado en tu zona
+          o que esté sin stock. No mostramos precios de otras localidades.</p>
+        ${acciones}`;
       return;
     }
 
-    const tr = document.querySelector(`#bloque-provincias tr[data-iso="${zona.iso}"]`);
-    const desde = tr ? tr.children[1].textContent.trim() : "";
-    const donde = tr ? tr.children[2].textContent.trim() : "";
-    if (!desde) {
-      cuerpo.innerHTML = `<p>No registramos este producto en ${esc(zona.nombre)}
-        ni en el resto de ${esc(provincias[zona.iso] || "la provincia")}.</p>`;
-      return;
+    const cadenas = (d && d.b) || [];
+    const pares = [];
+    for (let i = 0; i < fila[1].length; i += 2) {
+      pares.push([cadenas[fila[1][i]] || "—", fila[1][i + 1]]);
     }
+    pares.sort((a, b) => a[1] - b[1]);
+
+    const min = pares[0][1];
+    const max = pares[pares.length - 1][1];
+    const dif = max - min;
+    const pct = min ? Math.round((dif / min) * 100) : 0;
+    const sucursales = fila[2] || 0;
+    const cuerpoTabla = pares
+      .map(([c, p]) => `<tr><td>${esc(c)}</td><td class="num">${pesos(p)}</td></tr>`)
+      .join("");
+
     cuerpo.innerHTML = `
-      <p>No registramos este producto en ${esc(zona.nombre)}.</p>
-      <p>En ${esc(provincias[zona.iso] || "la provincia")} está desde
-        <strong>${esc(desde)}</strong>${donde ? ` en ${esc(donde)}` : ""}.</p>
-      <p class="nota-campo">Puede estar en una localidad cercana:
-        <a href="/precios/zona/${esc(slugs[zona.iso] || "")}/">ver precios en
-        ${esc(provincias[zona.iso] || "la provincia")}</a>.</p>`;
+      <p class="zona-destacado">Más barato: <strong>${pesos(min)}</strong>
+        en <strong>${esc(pares[0][0])}</strong>.</p>
+      <div class="panel-precios panel-precios--zona">
+        <div class="dato">
+          <span class="etiqueta">Más barato</span>
+          <strong class="cifra destacada">${pesos(min)}</strong>
+        </div>
+        <div class="dato">
+          <span class="etiqueta">Más caro</span>
+          <strong class="cifra">${pesos(max)}</strong>
+        </div>
+        <div class="dato">
+          <span class="etiqueta">Diferencia</span>
+          <strong class="cifra">${pesos(dif)} <span class="pct">(${pct}%)</span></strong>
+        </div>
+      </div>
+      <table class="tabla tabla-compacta">
+        <thead><tr><th>Comercio</th><th class="num">Precio</th></tr></thead>
+        <tbody>${cuerpoTabla}</tbody>
+      </table>
+      <p class="nota-campo">
+        ${sucursales} ${sucursales === 1 ? "sucursal" : "sucursales"} en
+        ${esc(zona.nombre)} · precios de lista informados al SEPA el
+        ${esc(panel.dataset.fecha)}.
+      </p>
+      ${acciones}`;
   }
 
   async function pintarLocalidad(zona, panel) {
@@ -229,10 +344,8 @@
     cuerpo.innerHTML = '<p class="nota-campo">Buscando precios en tu zona…</p>';
     if (pie) pie.textContent = "";
     try {
-      const r = await fetch(`/datos/localidad/${zona.id}.json${sufijo}`);
-      if (!r.ok) throw new Error("sin datos");
-      const d = await r.json();
-      if (!d.p || !d.p.length) throw new Error("vacio");
+      const d = await cargarLocalidad(zona.id);
+      if (!d || !d.p || !d.p.length) throw new Error("vacio");
       cuerpo.innerHTML = d.p.map(([ean, nombre, marca, precio, bandera]) => `
         <a class="tarjeta-producto" href="/precios/producto/${esc(ean)}/">
           <span class="prod-nombre">${esc(nombre)}</span>
@@ -242,9 +355,8 @@
         </a>`).join("");
       if (pie) {
         pie.innerHTML = `Precios de lista del ${esc(panel.dataset.fecha || "")} en
-          ${esc(zona.nombre)}, ${esc(provincias[zona.iso] || "")}.
-          <a href="/precios/zona/${esc(slugs[zona.iso] || "")}/">Ver todo en
-          ${esc(provincias[zona.iso] || "la provincia")}</a>.`;
+          ${esc(zona.nombre)}. Buscá un producto arriba para ver su precio acá.
+          <button type="button" class="zona-boton" data-zona-quitar>Ver todo el país</button>`;
       }
     } catch (e) {
       cuerpo.innerHTML = `<p class="nota-campo">No pudimos cargar los precios de
@@ -323,6 +435,10 @@
   try {
     guardada = JSON.parse(localStorage.getItem(CLAVE) || "null");
   } catch (e) { /* sin preferencia */ }
+
+  // Se oculta el contenido nacional antes de pedir los datos, para que no
+  // aparezca un precio de otra localidad mientras carga.
+  if (guardada && guardada.iso) document.body.classList.add("con-zona");
 
   cargar().then(() => {
     if (!guardada || !guardada.iso) return;
