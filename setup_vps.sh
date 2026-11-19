@@ -25,12 +25,12 @@ npm install -g wrangler
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-# Crear archivo .env si no existe
-if [ ! -f .env ]; then
-    echo "Configurando credenciales de Cloudflare en .env..."
-    cat << 'EOF' > .env
-CLOUDFLARE_ACCOUNT_ID=f4cc89a75c13843ecf49e1ab81066a5b
-CLOUDFLARE_API_TOKEN=cfut_c94hfyXTFGDtvcIXqgpBZ5VG3clgpjuRU3l6SPHsca554bee
+# Si se pasan credenciales por argumento, guardarlas en .env
+if [ $# -ge 2 ]; then
+    echo "Guardando credenciales de Cloudflare en .env..."
+    cat << EOF > .env
+CLOUDFLARE_ACCOUNT_ID=$1
+CLOUDFLARE_API_TOKEN=$2
 EOF
 fi
 
