@@ -37,10 +37,12 @@
   </section>
 
   <section class="bloque solo-pais">
-    <h2>Dónde está más barato</h2>
+    <h2>Precios de menor a mayor</h2>
     <p class="nota-campo">
-      Precios de lista informados al SEPA el {{ fecha_larga }}. Las promociones
-      se muestran aparte porque pueden requerir tarjeta o programa de fidelidad.
+      Las {{ ofertas|length }} sucursales más baratas de {{ n_sucursales }},
+      ordenadas de menor a mayor. Precios de lista informados al SEPA el
+      {{ fecha_larga }}. Las promociones se muestran aparte porque pueden
+      requerir tarjeta o programa de fidelidad.
     </p>
     <div class="tabla-scroll">
       <table class="tabla">
@@ -79,7 +81,7 @@
   </section>
 
   <section class="bloque solo-pais">
-    <h2>Precio por cadena</h2>
+    <h2>Precio por cadena, de menor a mayor</h2>
     <table class="tabla tabla-compacta">
       <thead>
         <tr><th>Cadena</th><th class="num">Más barato</th><th class="num">Más caro</th><th class="num">Sucursales</th></tr>
@@ -128,20 +130,5 @@
     <h2>Qué dice el relevamiento</h2>
     <p>{{ parrafo }}</p>
   </section>
-
-  {% if similares %}
-  <section class="bloque">
-    <h2>Productos similares</h2>
-    <div class="grilla-productos">
-      {% for s in similares %}
-      <a class="tarjeta-producto" href="/precios/producto/{{ s.ean }}/">
-        <span class="prod-nombre">{{ s.nombre_corto }}</span>
-        <span class="prod-marca">{{ s.marca or "Sin marca" }}</span>
-        <span class="prod-precio">desde {{ s.precio_min_fmt }}</span>
-      </a>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
 </article>
 {% endblock %}

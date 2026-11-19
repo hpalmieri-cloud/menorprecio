@@ -252,6 +252,7 @@ a { color: var(--azul); }
 .panel-zona h2 { margin-bottom: .5rem; }
 .zona-destacado { font-size: 1.05rem; margin: .1rem 0 .8rem; }
 .zona-destacado strong { color: var(--verde); }
+.tabla-titulo { font-size: .95rem; font-weight: 600; margin: 0 0 .45rem; }
 .fila-zona { background: var(--azul-claro); }
 .fila-zona td { font-weight: 600; }
 

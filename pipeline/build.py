@@ -589,16 +589,8 @@ def main() -> None:
         if not ops:
             continue
 
-        # Primero la sucursal más barata de cada cadena; después el resto.
-        vistas: set[str] = set()
-        primeras, resto = [], []
-        for o in ops:
-            if o["bandera"] not in vistas:
-                vistas.add(o["bandera"])
-                primeras.append(o)
-            else:
-                resto.append(o)
-        mostrar = (primeras + resto)[:OFERTAS_POR_FICHA]
+        # Las sucursales más baratas primero: el listado va de menor a mayor.
+        mostrar = ops[:OFERTAS_POR_FICHA]
 
         por_cadena: dict[str, list[float]] = {}
         for o in ops:
@@ -627,17 +619,6 @@ def main() -> None:
         pmin, pmax = p["precio_min"], p["precio_max"]
         dif = (pmax or 0) - (pmin or 0)
         pct = (dif / pmin * 100) if pmin else 0
-
-        similares = [
-            {
-                "ean": s["ean"],
-                "nombre_corto": corto(s["nombre"]),
-                "marca": (s["marca_limpia"] or "").title(),
-                "precio_min_fmt": ars(s["precio_min"]),
-            }
-            for s in por_categoria[p["categoria"]]
-            if s["ean"] != p["ean"] and s["precio_min"]
-        ][:6]
 
         parrafo = (
             f"En el relevamiento del {fecha_larga(fecha)}, {corto(p['nombre'], 90).lower()} "
@@ -691,7 +672,6 @@ def main() -> None:
             por_cadena=cadena_ctx,
             provincias=prov_ctx,
             parrafo=parrafo,
-            similares=similares,
             jsonld=jsonld,
         ), encoding="utf-8")
 

@@ -276,7 +276,7 @@
     const titulo = document.getElementById("panel-zona-titulo");
     if (!cuerpo) return;
     panel.hidden = false;
-    titulo.textContent = `Precios en ${zona.nombre}`;
+    titulo.textContent = `Precios de menor a mayor en ${zona.nombre}`;
     cuerpo.innerHTML = '<p class="nota-campo">Buscando precios en tu zona…</p>';
 
     let d = null;
@@ -316,7 +316,7 @@
     for (let i = 0; i < fila[1].length; i += 2) {
       pares.push([cadenas[fila[1][i]] || "—", fila[1][i + 1]]);
     }
-    pares.sort((a, b) => a[1] - b[1]);
+    pares.sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0], "es"));
 
     const min = pares[0][1];
     const max = pares[pares.length - 1][1];
@@ -344,6 +344,7 @@
           <strong class="cifra">${pesos(dif)} <span class="pct">(${pct}%)</span></strong>
         </div>
       </div>
+      <h3 class="tabla-titulo">Comercios de ${esc(zona.nombre)}, de menor a mayor precio</h3>
       <table class="tabla tabla-compacta">
         <thead><tr><th>Comercio</th><th class="num">Precio</th></tr></thead>
         <tbody>${cuerpoTabla}</tbody>
