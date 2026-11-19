@@ -319,9 +319,6 @@
     pares.sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0], "es"));
 
     const min = pares[0][1];
-    const max = pares[pares.length - 1][1];
-    const dif = max - min;
-    const pct = min ? Math.round((dif / min) * 100) : 0;
     const sucursales = fila[2] || 0;
     const cuerpoTabla = pares
       .map(([c, p]) => `<tr><td>${esc(c)}</td><td class="num">${pesos(p)}</td></tr>`)
@@ -330,20 +327,6 @@
     cuerpo.innerHTML = `
       <p class="zona-destacado">Más barato: <strong>${pesos(min)}</strong>
         en <strong>${esc(pares[0][0])}</strong>.</p>
-      <div class="panel-precios panel-precios--zona">
-        <div class="dato">
-          <span class="etiqueta">Más barato</span>
-          <strong class="cifra destacada">${pesos(min)}</strong>
-        </div>
-        <div class="dato">
-          <span class="etiqueta">Más caro</span>
-          <strong class="cifra">${pesos(max)}</strong>
-        </div>
-        <div class="dato">
-          <span class="etiqueta">Diferencia</span>
-          <strong class="cifra">${pesos(dif)} <span class="pct">(${pct}%)</span></strong>
-        </div>
-      </div>
       <h3 class="tabla-titulo">Comercios de ${esc(zona.nombre)}, de menor a mayor precio</h3>
       <table class="tabla tabla-compacta">
         <thead><tr><th>Comercio</th><th class="num">Precio</th></tr></thead>

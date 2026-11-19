@@ -260,7 +260,6 @@ a { color: var(--azul); }
 body.con-zona .solo-pais { display: none !important; }
 .solo-zona { display: none; }
 body.con-zona .solo-zona { display: inline; }
-.panel-precios--zona { margin: 0 0 1rem; }
 .zona-acciones { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; }
 .zona-boton {
   padding: .32rem .85rem; font: inherit; font-size: .82rem;
