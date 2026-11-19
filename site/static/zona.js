@@ -139,7 +139,29 @@
     });
   }
 
+  // La lista de localidades cambia con cada volcado: se valida el id guardado
+  // contra la lista del día y, si cambió, se busca por nombre y provincia.
+  function zonaVigente(zona) {
+    if (!zona || !zona.nombre) return null;
+    const lista = datos || [];
+    if (lista.some((l) => l[2] === zona.id)) return zona;
+    const mismo = lista.find((l) => l[1] === zona.iso && norm(l[0]) === norm(zona.nombre));
+    return mismo ? { ...zona, id: mismo[2] } : null;
+  }
+
   function aplicar(zona) {
+    zona = zonaVigente(zona);
+    if (!zona) {
+      // La localidad ya no está en el relevamiento: se vuelve a todo el país.
+      document.body.classList.remove("con-zona");
+      try {
+        localStorage.removeItem(CLAVE);
+      } catch (e) { /* modo privado */ }
+      return;
+    }
+    try {
+      localStorage.setItem(CLAVE, JSON.stringify(zona));
+    } catch (e) { /* modo privado */ }
     document.body.classList.add("con-zona");
     marcarProvincia(zona.iso);
     // El buscador de productos escucha este aviso para filtrar por la zona.
@@ -442,8 +464,17 @@
 
   cargar().then(() => {
     if (!guardada || !guardada.iso) return;
-    input.value = guardada.nombre;
-    marcarEstado(guardada);
-    aplicar(guardada);
+    const vigente = zonaVigente(guardada);
+    if (!vigente) {
+      // La localidad guardada ya no está en el relevamiento de hoy.
+      document.body.classList.remove("con-zona");
+      try {
+        localStorage.removeItem(CLAVE);
+      } catch (e) { /* modo privado */ }
+      return;
+    }
+    input.value = vigente.nombre;
+    marcarEstado(vigente);
+    aplicar(vigente);
   });
 })();
