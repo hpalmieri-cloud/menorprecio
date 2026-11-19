@@ -800,6 +800,7 @@ def main() -> None:
             round(p["precio_min"] or 0),
             p["categoria"],
             presentacion(p["nombre"]),
+            (p["mejor_bandera"] or "").strip(),
         ])
     idx_dir = DIST / "datos" / "indice"
     idx_dir.mkdir(parents=True)

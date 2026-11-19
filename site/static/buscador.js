@@ -12,6 +12,9 @@
   const nota = document.getElementById("resultados-nota");
   const tabla = document.getElementById("resultados-tabla");
   const vacio = document.getElementById("resultados-vacio");
+  const empresas = document.getElementById("resultados-empresas");
+  const empresasTitulo = document.getElementById("resultados-empresas-titulo");
+  const empresasLista = document.getElementById("resultados-empresas-lista");
   if (!input || !cuerpo || !seccion) return;
 
   const CLAVE = "menorprecio.zona";
@@ -104,6 +107,8 @@
     tabla.hidden = true;
     vacio.hidden = true;
     vacio.innerHTML = "";
+    empresas.hidden = true;
+    empresasLista.innerHTML = "";
   }
 
   function filtrar(indices, q, mapa) {
@@ -128,7 +133,7 @@
         hits.push({
           item,
           precio: item[3],
-          cadena: "",
+          cadena: item[6] || "",
           direccion: "",
           local: false,
         });
@@ -138,7 +143,11 @@
       (a.precio || Infinity) - (b.precio || Infinity) ||
       a.item[1].localeCompare(b.item[1], "es")
     );
-    return { hits: hits.slice(0, MAX), fuera };
+    // Empresas de todos los resultados, no solo de las filas que se ven.
+    const empresas = Array.from(
+      new Set(hits.map((h) => h.cadena).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b, "es"));
+    return { hits: hits.slice(0, MAX), empresas, fuera };
   }
 
   function pintarVacio(texto, ctx) {
@@ -147,6 +156,8 @@
       : `Resultados para “${texto}”`;
     nota.textContent = "";
     tabla.hidden = true;
+    empresas.hidden = true;
+    empresasLista.innerHTML = "";
 
     let aviso = `Sin resultados para “${esc(texto)}”.`;
     if (ctx.conZona && ctx.fuera) {
@@ -181,7 +192,7 @@
       : `“${texto}” en todo el país`;
     nota.textContent = ctx.conZona
       ? "Proveedor y dirección del local más barato de tu zona. Ordenado de menor a mayor precio."
-      : "Elegí tu localidad arriba para ver el proveedor y la dirección del local más barato. Ordenado de menor a mayor precio.";
+      : "Proveedor del precio mínimo nacional. Elegí tu localidad para ver también la dirección. Ordenado de menor a mayor precio.";
 
     cuerpo.innerHTML = hits.map((h) => {
       const ean = h.item[0];
@@ -203,6 +214,19 @@
     tabla.hidden = false;
     vacio.hidden = true;
     vacio.innerHTML = "";
+
+    // Desplegable con las empresas de la búsqueda: solo el nombre, y la
+    // cantidad en la cabecera.
+    const lista = ctx.empresas || [];
+    if (lista.length) {
+      empresasTitulo.textContent = `Empresas incluidas (${lista.length})`;
+      empresasLista.innerHTML = lista.map((n) => `<li>${esc(n)}</li>`).join("");
+      empresas.hidden = false;
+    } else {
+      empresas.hidden = true;
+      empresasLista.innerHTML = "";
+    }
+
     seccion.hidden = false;
   }
 
@@ -223,7 +247,11 @@
 
     const r = filtrar(indices, q, mapa);
     // Si la zona guardada ya no existe, se muestran los precios del país.
-    pintar(texto, r.hits, { conZona: Boolean(conZona && mapa), fuera: r.fuera });
+    pintar(texto, r.hits, {
+      conZona: Boolean(conZona && mapa),
+      fuera: r.fuera,
+      empresas: r.empresas,
+    });
   }
 
   input.addEventListener("input", () => {

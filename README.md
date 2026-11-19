@@ -124,7 +124,9 @@ tools/          uv, Python, Node y wrangler portátiles (no se versiona)
 - Con una zona elegida, la búsqueda de productos muestra una tabla independiente
   del cuadro de búsqueda (producto, presentación, proveedor, dirección y precio),
   ordenada de menor a mayor, con el local más barato de esa localidad; si el
-  producto no está, ofrece verlo en todo el país.
+  producto no está, ofrece verlo en todo el país. Debajo del título, un
+  desplegable «Empresas incluidas (N)» lista los nombres de las cadenas que
+  aparecen en esa búsqueda.
 - Con zona elegida, la ficha y los listados muestran **solo precios de esa
   localidad**: la ficha reemplaza el resumen nacional por los puntos de venta
   de la zona, de menor a mayor, con la dirección del local más barato de cada
