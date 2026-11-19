@@ -118,16 +118,18 @@ tools/          uv, Python, Node y wrangler portátiles (no se versiona)
 - 3.000 fichas de producto seleccionadas por disponibilidad
   (`n_cadenas >= 4`, fuera códigos internos) con cuota de 500 por categoría.
 - 15 páginas de categoría, hub `/precios/`, portada con buscador.
-- Buscador de zona: autocompletado de **432 localidades** desde 3 letras (con
-  la provincia cuando el nombre se repite), geolocalización del navegador y
+- Buscador de zona: autocompletado de **más de 400 localidades** desde 3 letras
+  (con la provincia cuando el nombre se repite), geolocalización del navegador y
   preferencia guardada en `localStorage`.
-- Con una zona elegida, la búsqueda de productos filtra a los que se venden en
-  esa localidad y muestra el precio y el comercio de ahí; si el producto no
-  está, ofrece verlo en todo el país.
+- Con una zona elegida, la búsqueda de productos muestra una tabla independiente
+  del cuadro de búsqueda (producto, presentación, proveedor, dirección y precio),
+  ordenada de menor a mayor, con el local más barato de esa localidad; si el
+  producto no está, ofrece verlo en todo el país.
 - Con zona elegida, la ficha y los listados muestran **solo precios de esa
-  localidad**: se ocultan el resumen nacional, las sucursales de otras
-  localidades y la tabla por provincia, y las tarjetas sin precio local dicen
-  «No está en tu zona». Un botón vuelve a la vista de todo el país.
+  localidad**: la ficha reemplaza el resumen nacional por los puntos de venta
+  de la zona, de menor a mayor, con la dirección del local más barato de cada
+  cadena; las tarjetas sin precio local dicen «No está en tu zona». Un botón
+  vuelve a la vista de todo el país.
 - Cada ficha muestra el precio por cadena en cada una de las 24 provincias.
 - `/precios/zona/` y una página por provincia con los 30 precios más bajos.
 - Los precios por localidad y cadena se cargan aparte, desde

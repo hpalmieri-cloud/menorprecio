@@ -168,8 +168,6 @@
     document.dispatchEvent(new CustomEvent("mp:zona", { detail: zona }));
     const ficha = document.getElementById("panel-zona");
     if (ficha) pintarFicha(zona, ficha);
-    const home = document.getElementById("panel-localidad");
-    if (home) pintarLocalidad(zona, home);
     localizarTarjetas(zona);
   }
 
@@ -190,8 +188,8 @@
     const cadenas = (d && d.c) || [];
     const mapa = new Map();
     const t = (d && d.t) || [];
-    for (let i = 0; i + 2 < t.length; i += 3) {
-      mapa.set(t[i], [t[i + 1], cadenas[t[i + 2]] || ""]);
+    for (let i = 0; i + 3 < t.length; i += 4) {
+      mapa.set(t[i], [t[i + 1], cadenas[t[i + 2]] || "", t[i + 3] || ""]);
     }
     return mapa;
   }
@@ -208,7 +206,6 @@
     if (!d) return;
     const mapa = mapaLocalidad(d);
     document.querySelectorAll('a[href^="/precios/producto/"]').forEach((a) => {
-      if (a.closest("#panel-localidad")) return;
       const m = (a.getAttribute("href") || "").match(/\/precios\/producto\/(\d+)\//);
       const precio = a.querySelector(".prod-precio");
       if (!m || !precio) return;
@@ -251,8 +248,6 @@
     document.querySelectorAll(".fila-sin-zona").forEach((el) => el.classList.remove("fila-sin-zona"));
     const ficha = document.getElementById("panel-zona");
     if (ficha) ficha.hidden = true;
-    const home = document.getElementById("panel-localidad");
-    if (home) home.hidden = true;
     input.value = "";
     if (estado) estado.textContent = "";
     document.dispatchEvent(new CustomEvent("mp:zona", { detail: null }));
@@ -313,23 +308,20 @@
 
     const cadenas = (d && d.b) || [];
     const pares = [];
-    for (let i = 0; i < fila[1].length; i += 2) {
-      pares.push([cadenas[fila[1][i]] || "—", fila[1][i + 1]]);
+    for (let i = 0; i + 2 < fila[1].length; i += 3) {
+      pares.push([cadenas[fila[1][i]] || "—", fila[1][i + 1], fila[1][i + 2] || ""]);
     }
     pares.sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0], "es"));
 
-    const min = pares[0][1];
     const sucursales = fila[2] || 0;
     const cuerpoTabla = pares
-      .map(([c, p]) => `<tr><td>${esc(c)}</td><td class="num">${pesos(p)}</td></tr>`)
+      .map(([c, p, dir]) => `<tr><td>${esc(c)}</td><td>${esc(dir || "—")}</td><td class="num">${pesos(p)}</td></tr>`)
       .join("");
 
     cuerpo.innerHTML = `
-      <p class="zona-destacado">Más barato: <strong>${pesos(min)}</strong>
-        en <strong>${esc(pares[0][0])}</strong>.</p>
-      <h3 class="tabla-titulo">Comercios de ${esc(zona.nombre)}, de menor a mayor precio</h3>
+      <h3 class="tabla-titulo">Puntos de venta en ${esc(zona.nombre)}, de menor a mayor precio</h3>
       <table class="tabla tabla-compacta">
-        <thead><tr><th>Comercio</th><th class="num">Precio</th></tr></thead>
+        <thead><tr><th>Proveedor</th><th>Dirección</th><th class="num">Precio</th></tr></thead>
         <tbody>${cuerpoTabla}</tbody>
       </table>
       <p class="nota-campo">
@@ -338,36 +330,6 @@
         ${esc(panel.dataset.fecha)}.
       </p>
       ${acciones}`;
-  }
-
-  async function pintarLocalidad(zona, panel) {
-    const cuerpo = document.getElementById("panel-localidad-cuerpo");
-    const titulo = document.getElementById("panel-localidad-titulo");
-    const pie = document.getElementById("panel-localidad-pie");
-    if (!cuerpo) return;
-    panel.hidden = false;
-    titulo.textContent = `Los 30 más baratos en ${zona.nombre}`;
-    cuerpo.innerHTML = '<p class="nota-campo">Buscando precios en tu zona…</p>';
-    if (pie) pie.textContent = "";
-    try {
-      const d = await cargarLocalidad(zona.id);
-      if (!d || !d.p || !d.p.length) throw new Error("vacio");
-      cuerpo.innerHTML = d.p.map(([ean, nombre, marca, precio, bandera]) => `
-        <a class="tarjeta-producto" href="/precios/producto/${esc(ean)}/">
-          <span class="prod-nombre">${esc(nombre)}</span>
-          <span class="prod-marca">${esc(marca || "Sin marca")}</span>
-          <span class="prod-precio">${pesos(precio)}</span>
-          <span class="prod-dato">${esc(bandera)}</span>
-        </a>`).join("");
-      if (pie) {
-        pie.innerHTML = `Precios de lista del ${esc(panel.dataset.fecha || "")} en
-          ${esc(zona.nombre)}. Buscá un producto arriba para ver su precio acá.
-          <button type="button" class="zona-boton" data-zona-quitar>Ver todo el país</button>`;
-      }
-    } catch (e) {
-      cuerpo.innerHTML = `<p class="nota-campo">No pudimos cargar los precios de
-        ${esc(zona.nombre)}.</p>`;
-    }
   }
 
   input.addEventListener("input", () => {

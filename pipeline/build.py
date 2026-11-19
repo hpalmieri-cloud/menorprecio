@@ -77,6 +77,39 @@ def slug_letra(texto: str) -> str:
     return m.group(0) if m else "_"
 
 
+UNIDADES = {
+    "kg": "kg", "kgs": "kg", "kilo": "kg", "kilos": "kg",
+    "g": "g", "gr": "g", "grs": "g", "grm": "g", "grms": "g",
+    "l": "l", "lt": "l", "lts": "l", "litro": "l", "litros": "l",
+    "ml": "ml", "cc": "ml",
+    "u": "u", "un": "u", "unid": "u", "unidades": "u",
+}
+
+
+def presentacion(nombre: str) -> str:
+    """Saca el tamaño del nombre: «500 GR» -> «500 g», «1,5 LT» -> «1.5 l»."""
+    texto = (nombre or "").upper().replace(",", ".")
+    medidas = re.findall(
+        r"(\d+(?:\.\d+)?)\s*"
+        r"(KGS?|KILOS?|GRMS?|GRS?|GR|KG|ML|CC|LTS?|LT|LITROS?|UNIDADES|UNID|UN|U|G|L)\b",
+        texto,
+    )
+    if not medidas:
+        return ""
+    cantidad, unidad = medidas[-1]
+    if cantidad.endswith(".0"):
+        cantidad = cantidad[:-2]
+    return f"{cantidad} {UNIDADES.get(unidad.lower(), unidad.lower())}"
+
+
+def direccion(texto: str) -> str:
+    """Normaliza la dirección del local: sin «0» ni «S/N» y en formato título."""
+    limpio = re.sub(r"\s+", " ", (texto or "").strip())
+    if not limpio:
+        return ""
+    return limpio.title()
+
+
 def fecha_larga(d: date) -> str:
     meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
              "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
@@ -251,7 +284,13 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
     lista = ",".join("'" + e.replace("'", "") + "'" for e in eans)
     destino.mkdir(parents=True, exist_ok=True)
     cur = con.execute(f"""
-        SELECT ean, provincia, localidad, bandera, MIN(precio_lista), COUNT(DISTINCT suc_key)
+        SELECT ean, provincia, localidad, bandera, MIN(precio_lista),
+               COUNT(DISTINCT suc_key),
+               arg_min(TRIM(COALESCE(calle, '') || ' ' ||
+                       CASE WHEN numero IS NULL
+                                 OR TRIM(numero) IN ('', '0', 'S/N', 'SN')
+                            THEN '' ELSE TRIM(numero) END),
+                       precio_lista)
         FROM '{PRECIOS_PARQUET.as_posix()}'
         WHERE ean IN ({lista}) AND precio_lista > 0
           AND localidad IS NOT NULL AND provincia IS NOT NULL
@@ -270,9 +309,11 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
             filas = []
             for clave in sorted(locales):
                 entrada = locales[clave]
-                plano: list[int] = []
-                for cadena, precio in sorted(entrada["c"].items(), key=lambda kv: kv[1]):
-                    plano.extend((idx[cadena], round(precio)))
+                plano: list = []
+                for cadena, (precio, direccion) in sorted(
+                    entrada["c"].items(), key=lambda kv: kv[1][0]
+                ):
+                    plano.extend((idx[cadena], round(precio), direccion))
                 filas.append([entrada["n"], plano, entrada["suc"]])
             provincias[iso] = filas
         payload = {"b": estado["cadenas"], "z": provincias}
@@ -286,7 +327,7 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
         lote = cur.fetchmany(200_000)
         if not lote:
             break
-        for ean, prov, loc, bandera, precio, sucursales in lote:
+        for ean, prov, loc, bandera, precio, sucursales, dir_local in lote:
             if ean != estado["ean"]:
                 if estado["ean"] is not None:
                     cerrar()
@@ -305,8 +346,8 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
             )
             entrada["suc"] += sucursales
             previo = entrada["c"].get(cadena)
-            if previo is None or precio < previo:
-                entrada["c"][cadena] = precio
+            if previo is None or precio < previo[0]:
+                entrada["c"][cadena] = (precio, direccion(dir_local))
 
     if estado["ean"] is not None:
         cerrar()
@@ -314,12 +355,12 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
 
 
 def escribir_localidades(con, eans: list[str], localidades: list[dict],
-                         productos: dict[str, dict], destino: Path) -> int:
+                         destino: Path) -> int:
     """Un JSON por localidad con el precio de cada producto disponible.
 
-    Incluye los 30 más baratos (para la portada) y, aparte, el precio mínimo
-    de todos los productos de la zona, que usa el buscador para responder
-    «cuánto sale X en mi localidad».
+    El precio es el mínimo de la zona, con la cadena y la dirección del local
+    más barato. Lo usa el buscador para responder «cuánto sale X en mi
+    localidad y dónde».
     """
     if not eans:
         return 0
@@ -347,12 +388,17 @@ def escribir_localidades(con, eans: list[str], localidades: list[dict],
         con.executemany("INSERT INTO zona_mapa VALUES (?, ?, ?, ?)", mapa_filas)
 
     cur = con.execute(f"""
-        SELECT m.iso, m.clave, g.ean, g.precio, g.bandera, g.n
+        SELECT m.iso, m.clave, g.ean, g.precio, g.bandera, g.n, g.direccion
         FROM (
             SELECT provincia, localidad, ean,
                    MIN(precio_lista) AS precio,
                    arg_min(bandera, precio_lista) AS bandera,
-                   COUNT(DISTINCT suc_key) AS n
+                   COUNT(DISTINCT suc_key) AS n,
+                   arg_min(TRIM(COALESCE(calle, '') || ' ' ||
+                           CASE WHEN numero IS NULL
+                                     OR TRIM(numero) IN ('', '0', 'S/N', 'SN')
+                                THEN '' ELSE TRIM(numero) END),
+                           precio_lista) AS direccion
             FROM {precios}
             WHERE ean IN ({lista}) AND precio_lista > 0
               AND localidad IS NOT NULL AND provincia IS NOT NULL
@@ -380,39 +426,22 @@ def escribir_localidades(con, eans: list[str], localidades: list[dict],
         # como vienen ordenados por precio, el primero es el más barato.
         filas: list[tuple] = []
         vistos: set[str] = set()
-        for ean, precio, idx, n in estado["filas"]:
+        for ean, precio, idx, n, dir_local in estado["filas"]:
             if ean in vistos:
                 continue
             vistos.add(ean)
-            filas.append((ean, precio, idx, n))
+            filas.append((ean, precio, idx, n, dir_local))
 
         cadenas = estado["cadenas"]
         plano: list = []
-        for ean, precio, idx, _ in filas:
-            plano.extend((ean, precio, idx))
-
-        top = []
-        for ean, precio, idx, n in filas:
-            p = productos.get(ean)
-            if not p:
-                continue
-            top.append([
-                ean,
-                corto(p["nombre"], 64),
-                (p["marca_limpia"] or "").title(),
-                precio,
-                cadenas[idx],
-                n,
-            ])
-            if len(top) >= 30:
-                break
+        for ean, precio, idx, _, dir_local in filas:
+            plano.extend((ean, precio, idx, dir_local))
 
         payload = {
             "n": entrada["nombre"],
             "iso": iso,
             "provincia": PROVINCIAS[iso],
             "c": cadenas,
-            "p": top,
             "t": plano,
         }
         (destino / f"{entrada['id']}.json").write_text(
@@ -425,7 +454,7 @@ def escribir_localidades(con, eans: list[str], localidades: list[dict],
         lote = cur.fetchmany(200_000)
         if not lote:
             break
-        for iso, clave_loc, ean, precio, bandera, n in lote:
+        for iso, clave_loc, ean, precio, bandera, n, dir_local in lote:
             if (iso, clave_loc) != estado["zona"]:
                 cerrar()
                 estado["zona"] = (iso, clave_loc)
@@ -438,7 +467,7 @@ def escribir_localidades(con, eans: list[str], localidades: list[dict],
                 idx = len(estado["cadenas"])
                 estado["cadenas"].append(cadena)
                 estado["idx"][cadena] = idx
-            estado["filas"].append((ean, round(precio), idx, n))
+            estado["filas"].append((ean, round(precio), idx, n, direccion(dir_local)))
 
     cerrar()
     return escritos
@@ -758,7 +787,7 @@ def main() -> None:
     }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     n_zonas = escribir_zonas_locales(con, eans, datos_dir / "zona")
-    n_loc = escribir_localidades(con, eans, localidades, por_ean, datos_dir / "localidad")
+    n_loc = escribir_localidades(con, eans, localidades, datos_dir / "localidad")
 
     # --- buscador ---
     indices: dict[str, list] = {}
@@ -770,6 +799,7 @@ def main() -> None:
             (p["marca_limpia"] or "").title(),
             round(p["precio_min"] or 0),
             p["categoria"],
+            presentacion(p["nombre"]),
         ])
     idx_dir = DIST / "datos" / "indice"
     idx_dir.mkdir(parents=True)

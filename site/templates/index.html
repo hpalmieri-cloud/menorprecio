@@ -11,17 +11,30 @@
     <form class="buscador" role="search" onsubmit="return false">
       <label class="sr" for="q">Buscar producto</label>
       <input id="q" type="search" placeholder="Ej.: leche entera, yerba, detergente…" autocomplete="off">
-      <div id="resultados" class="resultados" hidden></div>
     </form>
     <p class="pista">O mirá los <a href="#categorias">precios por categoría</a> o los <a href="/precios/zona/">precios de tu zona</a>.</p>
   </div>
 </section>
 
-<section class="seccion" id="panel-localidad" data-fecha="{{ fecha_larga }}" hidden>
+<section class="seccion" id="resultados-seccion" hidden>
   <div class="contenedor">
-    <h2 id="panel-localidad-titulo">Precios en tu zona</h2>
-    <div class="grilla-productos" id="panel-localidad-cuerpo"></div>
-    <p class="nota-campo" id="panel-localidad-pie"></p>
+    <h2 id="resultados-titulo">Resultados</h2>
+    <p class="nota-campo" id="resultados-nota"></p>
+    <div class="tabla-scroll" id="resultados-tabla" hidden>
+      <table class="tabla tabla-listado tabla-busqueda">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Presentación</th>
+            <th>Proveedor</th>
+            <th>Dirección</th>
+            <th class="num">Precio</th>
+          </tr>
+        </thead>
+        <tbody id="resultados"></tbody>
+      </table>
+    </div>
+    <div id="resultados-vacio" class="nota-campo" hidden></div>
   </div>
 </section>
 
