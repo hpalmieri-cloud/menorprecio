@@ -27,6 +27,9 @@ correr() {
 
 escribir "Inicio"
 
+# Actualizar el código desde GitHub antes de correr
+correr "Actualizar código" git pull origin main
+
 export PYTHONIOENCODING="utf-8"
 PY="$ROOT/.venv/bin/python3"
 if [ ! -f "$PY" ]; then

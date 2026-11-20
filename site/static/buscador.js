@@ -112,10 +112,38 @@
   }
 
   function filtrar(indices, q, mapa) {
+    const tokens = q.trim().split(/\s+/).filter(Boolean);
+    if (!tokens.length) return { hits: [], empresas: [], fuera: 0 };
+    const primerTermino = tokens[0];
+
+    // 1. Encontrar todos los productos que contienen las palabras buscadas
+    const candidatos = [];
+    for (const item of indices) {
+      const nom = norm(item[1]);
+      const mrc = norm(item[2]);
+      const textoCompleto = nom + " " + mrc;
+      if (!tokens.every((t) => textoCompleto.includes(t))) continue;
+
+      const esPrefijo =
+        nom.startsWith(q) ||
+        nom.startsWith(primerTermino + " ") ||
+        nom === primerTermino;
+
+      candidatos.push({ item, esPrefijo });
+    }
+
+    // 2. Si hay coincidencias donde el nombre del producto empieza con el término buscado
+    // (ej: "leche", "arroz", "aceite", "yerba playadito", "dulce de leche"), filtramos estrictamente
+    // para excluir productos derivados que solo contienen la palabra en el medio (alfajores, flanes, etc.).
+    const prefijos = candidatos.filter((c) => c.esPrefijo);
+    const usarEstricto =
+      prefijos.length >= 3 || (prefijos.length > 0 && prefijos.length === candidatos.length);
+
+    const seleccion = usarEstricto ? prefijos : candidatos;
+
     const hits = [];
     let fuera = 0;
-    for (const item of indices) {
-      if (!(norm(item[1]).includes(q) || norm(item[2]).includes(q))) continue;
+    for (const { item } of seleccion) {
       if (mapa) {
         const enZona = mapa.get(item[0]);
         if (!enZona) {

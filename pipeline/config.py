@@ -29,6 +29,8 @@ PRODUCTOS_PARQUET = DATA / "productos.parquet"
 # Límites de sanidad: filas fuera de rango se descartan en la normalización.
 PRECIO_MINIMO = 50.0
 PRECIO_MAXIMO = 5_000_000.0
+# Precios desactualizados o errores: descarta precios < 50% de la mediana si hay >= 3 cadenas.
+RATIO_MINIMO_MEDIANA = 0.5
 
 # Cuántas fichas de producto se publican en el MVP.
 FICHAS_MVP = 3000

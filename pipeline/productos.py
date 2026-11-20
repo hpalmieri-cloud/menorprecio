@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import duckdb
 
-from config import DATA, PRECIOS_PARQUET, PRODUCTOS_PARQUET
+from config import DATA, PRECIOS_PARQUET, PRODUCTOS_PARQUET, RATIO_MINIMO_MEDIANA
 
 # (slug, nombre visible, patrón) — el primero que coincide gana.
 #
@@ -53,7 +53,21 @@ def construir() -> None:
     case = _case_sql()
     con.execute(f"""
         CREATE OR REPLACE TABLE productos AS
-        WITH base AS (
+        WITH stats AS (
+            SELECT
+                ean,
+                MEDIAN(precio_lista) AS med,
+                COUNT(DISTINCT id_comercio) AS n_cadenas
+            FROM p
+            GROUP BY ean
+        ),
+        p_valido AS (
+            SELECT p.*
+            FROM p
+            JOIN stats s ON p.ean = s.ean
+            WHERE NOT (s.n_cadenas >= 3 AND p.precio_lista < s.med * {RATIO_MINIMO_MEDIANA})
+        ),
+        base AS (
             SELECT
                 ean,
                 arg_max(nombre, length(nombre))                       AS nombre,
@@ -66,7 +80,7 @@ def construir() -> None:
                 arg_min(bandera, precio_lista)                        AS mejor_bandera,
                 arg_min(localidad, precio_lista)                      AS mejor_localidad,
                 arg_min(precio_lista, precio_lista)                   AS mejor_precio
-            FROM p
+            FROM p_valido
             GROUP BY ean
         )
         SELECT *,

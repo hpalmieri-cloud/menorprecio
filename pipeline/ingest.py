@@ -24,6 +24,7 @@ from config import (
     PRECIO_MAXIMO,
     PRECIO_MINIMO,
     PRECIOS_PARQUET,
+    RATIO_MINIMO_MEDIANA,
     RAW,
     SEPA_API,
     SEPA_ZIP_FALLBACK,
@@ -188,6 +189,19 @@ def normalizar(csv_dir: Path) -> int:
         pmax=PRECIO_MAXIMO,
     )
     con.execute(sql)
+    # Saneamiento de precios desactualizados o errores de carga (< 50% de la mediana)
+    con.execute(f"""
+        CREATE OR REPLACE TABLE precios AS
+        WITH stats AS (
+            SELECT ean, MEDIAN(precio_lista) AS med, COUNT(DISTINCT id_comercio) AS n_cadenas
+            FROM precios
+            GROUP BY ean
+        )
+        SELECT p.*
+        FROM precios p
+        JOIN stats s ON p.ean = s.ean
+        WHERE NOT (s.n_cadenas >= 3 AND p.precio_lista < s.med * {RATIO_MINIMO_MEDIANA})
+    """)
     con.execute(
         f"COPY precios TO '{PRECIOS_PARQUET.as_posix()}' (FORMAT PARQUET, COMPRESSION ZSTD)"
     )
