@@ -45,8 +45,9 @@ chmod +x publicar.sh
 
 # 4. Programar tarea automática (todos los días a las 07:00 AM)
 echo "Programando cron diario a las 07:00 AM..."
+mkdir -p "$ROOT/logs"
 CRON_CMD="0 7 * * * cd $ROOT && ./publicar.sh >> $ROOT/logs/cron.log 2>&1"
-(crontab -l 2>/dev/null | grep -Fv "publicar.sh" ; echo "$CRON_CMD") | crontab -
+((crontab -l 2>/dev/null || true) | grep -Fv "publicar.sh" || true; echo "$CRON_CMD") | crontab -
 
 echo "=========================================================="
 echo "  ¡Listo! El servidor está 100% configurado y automatizado"
