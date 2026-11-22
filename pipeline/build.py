@@ -135,22 +135,53 @@ def cargar(con: duckdb.DuckDBPyConnection):
         f"SELECT * FROM '{PRODUCTOS_PARQUET.as_posix()}'"
     ).fetchall()]
 
-    mvp = [p for p in productos
-           if p["categoria"] != "otros"
-           and (p["n_cadenas"] or 0) >= 4          # comparable entre cadenas
-           and not p["ean"].startswith(("0", "2"))]  # fuera códigos internos/PLU
-    mvp.sort(key=lambda p: (-(p["n_sucursales"] or 0), p["precio_min"] or 0))
-    # cuota por categoría para que ninguna domine
-    cuota: dict[str, int] = {}
-    seleccion = []
-    for p in mvp:
+    # Regla de cadenas mínimas según categoría:
+    # electro, bazar, textil y construcción se comercializan en pocas cadenas (hipermercados)
+    def min_cadenas(cat: str) -> int:
+        if cat in ("electro", "bazar", "textil", "construccion"):
+            return 2
+        return 3
+
+    validos = [
+        p for p in productos
+        if p["categoria"] != "otros"
+        and not p["ean"].startswith(("0", "2"))
+        and (p["n_cadenas"] or 0) >= min_cadenas(p["categoria"])
+    ]
+
+    # Agrupar por categoría ordenados por mayor presencia (sucursales)
+    por_cat: dict[str, list[dict]] = {}
+    for p in validos:
+        por_cat.setdefault(p["categoria"], []).append(p)
+    for cat in por_cat:
+        por_cat[cat].sort(key=lambda p: (-(p["n_sucursales"] or 0), p["precio_min"] or 0))
+
+    # 1. Asegurar que los productos más disponibles de cada categoría
+    # (hasta PRODUCTOS_POR_CATEGORIA) tengan ficha generada y estén en el índice
+    seleccion_set: set[str] = set()
+    seleccion: list[dict] = []
+    for cat, items in por_cat.items():
+        for p in items[:PRODUCTOS_POR_CATEGORIA]:
+            if p["ean"] not in seleccion_set:
+                seleccion_set.add(p["ean"])
+                seleccion.append(p)
+
+    # 2. Completar hasta FICHAS_MVP de manera equitativa por categoría
+    cuota_max = 400
+    restantes = [p for p in validos if p["ean"] not in seleccion_set]
+    restantes.sort(key=lambda p: (-(p["n_sucursales"] or 0), p["precio_min"] or 0))
+
+    cuota = {cat: len([p for p in seleccion if p["categoria"] == cat]) for cat in por_cat}
+    for p in restantes:
         c = p["categoria"]
-        if cuota.get(c, 0) >= 500:
+        if cuota.get(c, 0) >= cuota_max:
             continue
         cuota[c] = cuota.get(c, 0) + 1
+        seleccion_set.add(p["ean"])
         seleccion.append(p)
         if len(seleccion) >= FICHAS_MVP:
             break
+
     return productos, seleccion, fecha
 
 
@@ -554,9 +585,15 @@ def main() -> None:
     ), encoding="utf-8")
 
     # --- categorías ---
+    por_categoria_seleccion: dict[str, list[dict]] = {}
+    for p in seleccion:
+        por_categoria_seleccion.setdefault(p["categoria"], []).append(p)
+    for lst in por_categoria_seleccion.values():
+        lst.sort(key=lambda p: (-(p["n_sucursales"] or 0), p["precio_min"] or 0))
+
     cat_dir = DIST / "precios"
     for c in categorias_ctx:
-        lista = por_categoria[c["slug"]][:PRODUCTOS_POR_CATEGORIA]
+        lista = por_categoria_seleccion.get(c["slug"], [])[:PRODUCTOS_POR_CATEGORIA]
         filas = [{
             "ean": p["ean"],
             "nombre_corto": corto(p["nombre"], 70),

@@ -111,10 +111,28 @@
     empresasLista.innerHTML = "";
   }
 
+  const SINONIMOS = {
+    televisor: ["televisor", "smart tv", "led tv", "tv"],
+    televisores: ["televisor", "smart tv", "led tv", "tv"],
+    tele: ["tv", "smart tv", "led tv"],
+    tvs: ["tv", "smart tv", "led tv"],
+    heladeras: ["heladera"],
+    lavarropa: ["lavarropas"],
+    microonda: ["microondas"],
+    celulares: ["celular"],
+  };
+
   function filtrar(indices, q, mapa) {
     const tokens = q.trim().split(/\s+/).filter(Boolean);
     if (!tokens.length) return { hits: [], empresas: [], fuera: 0 };
-    const primerTermino = tokens[0];
+
+    // Expandir tokens con sinónimos (ej: "televisor" busca "smart tv", "led tv", "tv", "televisor")
+    const tokensGrupos = tokens.map((t) => {
+      const syns = SINONIMOS[t] || [t];
+      return syns.map(norm);
+    });
+
+    const primerGrupo = tokensGrupos[0];
 
     // 1. Encontrar todos los productos que contienen las palabras buscadas
     const candidatos = [];
@@ -122,18 +140,25 @@
       const nom = norm(item[1]);
       const mrc = norm(item[2]);
       const textoCompleto = nom + " " + mrc;
-      if (!tokens.every((t) => textoCompleto.includes(t))) continue;
 
+      // Cada token (o alguno de sus sinónimos) debe figurar en el texto
+      const coincide = tokensGrupos.every((grupo) =>
+        grupo.some((syn) => textoCompleto.includes(syn))
+      );
+      if (!coincide) continue;
+
+      // Es prefijo si el nombre comienza con la búsqueda o con el primer término/sinónimo
       const esPrefijo =
         nom.startsWith(q) ||
-        nom.startsWith(primerTermino + " ") ||
-        nom === primerTermino;
+        primerGrupo.some((syn) =>
+          nom.startsWith(syn + " ") || nom.startsWith(syn) || nom === syn
+        );
 
       candidatos.push({ item, esPrefijo });
     }
 
     // 2. Si hay coincidencias donde el nombre del producto empieza con el término buscado
-    // (ej: "leche", "arroz", "aceite", "yerba playadito", "dulce de leche"), filtramos estrictamente
+    // (ej: "leche", "arroz", "aceite", "yerba playadito", "dulce de leche", "heladera", "televisor"), filtramos estrictamente
     // para excluir productos derivados que solo contienen la palabra en el medio (alfajores, flanes, etc.).
     const prefijos = candidatos.filter((c) => c.esPrefijo);
     const usarEstricto =
