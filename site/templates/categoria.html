@@ -15,24 +15,27 @@
 
 <section class="contenedor">
   <div class="tabla-scroll">
-    <table class="tabla tabla-listado">
+    <table class="tabla tabla-listado tabla-categoria">
       <thead>
         <tr>
-          <th>Producto</th>
-          <th>Marca</th>
-          <th class="num"><span class="solo-pais">Desde</span><span class="solo-zona">En tu zona</span></th>
-          <th class="num solo-pais">Mediana</th>
-          <th class="num solo-pais">Sucursales</th>
+          <th class="col-prod">Producto</th>
+          <th class="col-marca">Marca</th>
+          <th class="num col-precio"><span class="solo-pais">Desde</span><span class="solo-zona">En tu zona</span></th>
+          <th class="num col-mediana solo-pais">Mediana</th>
+          <th class="num col-suc solo-pais">Sucursales</th>
         </tr>
       </thead>
       <tbody>
         {% for p in productos %}
         <tr data-ean="{{ p.ean }}">
-          <td><a href="/precios/producto/{{ p.ean }}/">{{ p.nombre_corto }}</a></td>
-          <td>{{ p.marca or "—" }}</td>
-          <td class="num" data-precio>{{ p.precio_min_fmt }}</td>
-          <td class="num solo-pais">{{ p.precio_mediana_fmt }}</td>
-          <td class="num solo-pais">{{ p.n_sucursales }}</td>
+          <td class="col-prod">
+            <a href="/precios/producto/{{ p.ean }}/">{{ p.nombre_corto }}</a>
+            {% if p.marca %}<span class="sub-movil">{{ p.marca }}</span>{% endif %}
+          </td>
+          <td class="col-marca">{{ p.marca or "—" }}</td>
+          <td class="num col-precio" data-precio>{{ p.precio_min_fmt }}</td>
+          <td class="num col-mediana solo-pais">{{ p.precio_mediana_fmt }}</td>
+          <td class="num col-suc solo-pais">{{ p.n_sucursales }}</td>
         </tr>
         {% endfor %}
       </tbody>

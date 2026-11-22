@@ -230,12 +230,16 @@
         ? (h.local ? pesos(h.precio) : `desde ${pesos(h.precio)}`)
         : "—";
       const url = `/precios/producto/${encodeURIComponent(ean)}/`;
+      const subDetalles = [presentacion, h.cadena, h.direccion].filter(Boolean).map(esc).join(" · ");
       return `<tr>
-        <td><a href="${url}">${esc(nombre)}</a></td>
-        <td>${esc(presentacion || "—")}</td>
-        <td>${esc(h.cadena || "—")}</td>
-        <td>${esc(h.direccion || "—")}</td>
-        <td class="num"><a class="precio-lista" href="${url}">${precio}</a></td>
+        <td class="col-prod">
+          <a class="prod-nombre" href="${url}">${esc(nombre)}</a>
+          ${subDetalles ? `<span class="prod-sub-movil">${subDetalles}</span>` : ""}
+        </td>
+        <td class="col-pres">${esc(presentacion || "—")}</td>
+        <td class="col-cadena">${esc(h.cadena || "—")}</td>
+        <td class="col-dir">${esc(h.direccion || "—")}</td>
+        <td class="num col-precio"><a class="precio-lista" href="${url}">${precio}</a></td>
       </tr>`;
     }).join("");
 

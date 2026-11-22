@@ -51,24 +51,27 @@
       requerir tarjeta o programa de fidelidad.
     </p>
     <div class="tabla-scroll">
-      <table class="tabla">
+      <table class="tabla tabla-sucursales">
         <thead>
           <tr>
-            <th>Comercio</th>
-            <th>Sucursal</th>
-            <th>Localidad</th>
-            <th class="num">Lista</th>
-            <th class="num">Promo</th>
+            <th class="col-comercio">Comercio</th>
+            <th class="col-sucursal">Sucursal</th>
+            <th class="col-localidad">Localidad</th>
+            <th class="num col-lista">Lista</th>
+            <th class="num col-promo">Promo</th>
           </tr>
         </thead>
         <tbody>
           {% for o in ofertas %}
           <tr>
-            <td>{{ o.bandera }}</td>
-            <td>{{ o.sucursal }}</td>
-            <td>{{ o.localidad }}</td>
-            <td class="num">{{ o.precio_fmt }}</td>
-            <td class="num">
+            <td class="col-comercio">
+              <span class="comercio-nombre">{{ o.bandera }}</span>
+              <span class="comercio-sub-movil">{{ o.sucursal }}{% if o.localidad %} · {{ o.localidad }}{% endif %}</span>
+            </td>
+            <td class="col-sucursal">{{ o.sucursal }}</td>
+            <td class="col-localidad">{{ o.localidad }}</td>
+            <td class="num col-lista">{{ o.precio_fmt }}</td>
+            <td class="num col-promo">
               {% if o.promo_fmt %}
                 <span class="promo">{{ o.promo_fmt }}</span>
                 {% if o.promo_leyenda %}<span class="leyenda" title="{{ o.promo_leyenda }}">*</span>{% endif %}
@@ -89,17 +92,22 @@
   <section class="bloque solo-pais">
     <h2>Precio por cadena, de menor a mayor</h2>
     <div class="tabla-scroll">
-      <table class="tabla tabla-compacta">
+      <table class="tabla tabla-compacta tabla-cadenas">
         <thead>
-          <tr><th>Cadena</th><th class="num">Más barato</th><th class="num">Más caro</th><th class="num">Sucursales</th></tr>
+          <tr>
+            <th class="col-cadena">Cadena</th>
+            <th class="num col-min">Más barato</th>
+            <th class="num col-max">Más caro</th>
+            <th class="num col-suc-n">Sucursales</th>
+          </tr>
         </thead>
         <tbody>
           {% for c in por_cadena %}
           <tr>
-            <td>{{ c.bandera }}</td>
-            <td class="num">{{ c.min_fmt }}</td>
-            <td class="num">{{ c.max_fmt }}</td>
-            <td class="num">{{ c.n }}</td>
+            <td class="col-cadena">{{ c.bandera }}</td>
+            <td class="num col-min">{{ c.min_fmt }}</td>
+            <td class="num col-max">{{ c.max_fmt }}</td>
+            <td class="num col-suc-n">{{ c.n }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -115,17 +123,25 @@
       donde se encontró. Elegí tu localidad arriba para ver el detalle de tu zona.
     </p>
     <div class="tabla-scroll">
-      <table class="tabla tabla-compacta">
+      <table class="tabla tabla-compacta tabla-provincias">
         <thead>
-          <tr><th>Provincia</th><th class="num">Desde</th><th>Comercio</th><th>Localidad</th></tr>
+          <tr>
+            <th class="col-prov">Provincia</th>
+            <th class="num col-desde">Desde</th>
+            <th class="col-comercio">Comercio</th>
+            <th class="col-loc">Localidad</th>
+          </tr>
         </thead>
         <tbody>
           {% for pr in provincias %}
           <tr data-iso="{{ pr.iso }}">
-            <td><a href="/precios/zona/{{ pr.slug }}/">{{ pr.nombre }}</a></td>
-            <td class="num">{{ pr.precio_fmt }}</td>
-            <td>{{ pr.bandera }}</td>
-            <td>{{ pr.localidad or "—" }}</td>
+            <td class="col-prov">
+              <a href="/precios/zona/{{ pr.slug }}/">{{ pr.nombre }}</a>
+              <span class="prov-sub-movil">{{ pr.bandera }}{% if pr.localidad %} · {{ pr.localidad }}{% endif %}</span>
+            </td>
+            <td class="num col-desde">{{ pr.precio_fmt }}</td>
+            <td class="col-comercio">{{ pr.bandera }}</td>
+            <td class="col-loc">{{ pr.localidad or "—" }}</td>
           </tr>
           {% endfor %}
         </tbody>
