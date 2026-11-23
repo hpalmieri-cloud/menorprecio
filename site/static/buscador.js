@@ -330,41 +330,53 @@
     if (input.value.trim().length >= 2) buscar();
   });
 
-  // ---------- Lector de código de barras (Cámara) ----------
+  // ---------- Lector de código de barras con Quagga2 (Cámara) ----------
   const btnEscanear = document.getElementById("btn-escanear");
   const modalEscaner = document.getElementById("modal-escaner");
   const btnCerrarEscaner = document.getElementById("btn-cerrar-escaner");
   const fondoEscaner = document.getElementById("modal-escaner-fondo");
   const escanerMensaje = document.getElementById("escaner-mensaje");
-
   const escanerManualForm = document.getElementById("escaner-manual-form");
   const escanerManualInput = document.getElementById("escaner-manual-input");
   const escanerManualBtn = document.getElementById("escaner-manual-btn");
 
-  let html5QrCode = null;
   let escaneando = false;
+  let ultimoCodigo = null;
+  let conteoLecturas = 0;
+
+  function validarChecksumEAN(ean) {
+    if (!/^\d{8}$|^\d{12,14}$/.test(ean)) return false;
+    const digits = ean.split("").map(Number);
+    const check = digits.pop();
+    let sum = 0;
+    for (let i = 0; i < digits.length; i++) {
+      const d = digits[digits.length - 1 - i];
+      sum += d * (i % 2 === 0 ? 3 : 1);
+    }
+    const calc = (10 - (sum % 10)) % 10;
+    return calc === check;
+  }
 
   async function cargarLibreriaEscaner() {
-    if (window.Html5Qrcode) return true;
+    if (window.Quagga) return true;
     return new Promise((resolve) => {
       const s = document.createElement("script");
-      s.src = "/assets/html5-qrcode.min.js" + sufijo;
+      s.src = "/assets/quagga.min.js" + sufijo;
       s.onload = () => resolve(true);
       s.onerror = () => resolve(false);
       document.head.appendChild(s);
     });
   }
 
-  async function detenerEscaner() {
-    if (html5QrCode && escaneando) {
+  function detenerEscaner() {
+    if (window.Quagga && escaneando) {
       try {
-        await html5QrCode.stop();
-        html5QrCode.clear();
-      } catch (e) {
-        // ignorar error al detener
-      }
+        Quagga.stop();
+      } catch (e) {}
     }
     escaneando = false;
+    const lector = document.getElementById("escaner-lector");
+    if (lector) lector.innerHTML = "";
   }
 
   function cerrarModalEscaner() {
@@ -385,7 +397,7 @@
       escanerMensaje.textContent = `¡Código detectado (${ean})! Buscando...`;
     }
 
-    await detenerEscaner();
+    detenerEscaner();
 
     // 1. Verificar si está en los índices cargados en memoria
     const indices = await cargarTodo();
@@ -426,7 +438,7 @@
     }
 
     const ok = await cargarLibreriaEscaner();
-    if (!ok || !window.Html5Qrcode) {
+    if (!ok || !window.Quagga) {
       if (escanerMensaje) {
         escanerMensaje.className = "escaner-mensaje error";
         escanerMensaje.textContent = "No se pudo cargar el lector de cámara. Verificá tu conexión.";
@@ -434,74 +446,79 @@
       return;
     }
 
-    // Reiniciar instancia previa si quedó abierta
-    if (html5QrCode) {
-      try { await html5QrCode.stop(); } catch (e) {}
-      try { html5QrCode.clear(); } catch (e) {}
-      html5QrCode = null;
-    }
+    detenerEscaner();
+    ultimoCodigo = null;
+    conteoLecturas = 0;
 
-    try {
-      const supported = window.Html5QrcodeSupportedFormats;
-      const formats = supported ? [
-        supported.EAN_13,
-        supported.EAN_8,
-        supported.UPC_A,
-        supported.UPC_E,
-        supported.CODE_128,
-      ] : undefined;
+    const lector = document.getElementById("escaner-lector");
+    if (!lector) return;
+    lector.innerHTML = '<div class="escaner-mira-guia"></div>';
 
-      html5QrCode = new Html5Qrcode("escaner-lector", {
-        formatsToSupport: formats,
-        verbose: false,
-      });
-
+    Quagga.init({
+      inputStream: {
+        name: "Live",
+        type: "LiveStream",
+        target: lector,
+        constraints: {
+          facingMode: "environment",
+        },
+      },
+      locator: {
+        patchSize: "medium",
+        halfSample: true,
+      },
+      numOfWorkers: 0,
+      frequency: 10,
+      decoder: {
+        readers: [
+          "ean_reader",
+          "ean_8_reader",
+          "upc_reader",
+          "upc_e_reader",
+        ],
+      },
+      locate: true,
+    }, function(err) {
+      if (err) {
+        console.error("Error Quagga:", err);
+        escaneando = false;
+        if (escanerMensaje) {
+          escanerMensaje.className = "escaner-mensaje error";
+          escanerMensaje.textContent = "No se pudo iniciar la cámara. Podés ingresar los números del código abajo.";
+        }
+        return;
+      }
+      Quagga.start();
       escaneando = true;
       if (escanerMensaje) {
-        escanerMensaje.textContent = "Apuntá al código de barras a unos 20 cm de distancia";
+        escanerMensaje.textContent = "Apuntá la barra roja al código (a unos 15-20 cm)";
+      }
+    });
+
+    Quagga.offDetected();
+    Quagga.onDetected((result) => {
+      if (!result || !result.codeResult || !result.codeResult.code) return;
+      const code = String(result.codeResult.code).replace(/\D/g, "");
+      if (code.length < 8) return;
+
+      // Si pasa el checksum EAN oficial, es una lectura 100% válida y confirmada
+      if (validarChecksumEAN(code)) {
+        procesarCodigoDetectado(code);
+        return;
       }
 
-      const qrConfig = {
-        fps: 10,
-        qrbox: { width: 250, height: 140 },
-      };
+      // Si no tiene checksum estándar, exigir 2 lecturas consecutivas iguales
+      if (code === ultimoCodigo) {
+        conteoLecturas++;
+      } else {
+        ultimoCodigo = code;
+        conteoLecturas = 1;
+      }
 
-      // 1. Probar con facingMode: environment
-      try {
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          qrConfig,
-          procesarCodigoDetectado,
-          () => {}
-        );
-      } catch (errFacing) {
-        // 2. Si falla en iOS, buscar ID de cámara trasera explícitamente
-        const cameras = await Html5Qrcode.getCameras();
-        if (cameras && cameras.length > 0) {
-          const cam = cameras.find((c) => /back|trasera|rear|environment/i.test(c.label)) || cameras[cameras.length - 1];
-          await html5QrCode.start(
-            cam.id,
-            qrConfig,
-            procesarCodigoDetectado,
-            () => {}
-          );
-        } else {
-          throw errFacing;
-        }
+      if (conteoLecturas >= 2) {
+        procesarCodigoDetectado(code);
       }
-    } catch (err) {
-      console.error("Error cámara:", err);
-      escaneando = false;
-      if (escanerMensaje) {
-        escanerMensaje.className = "escaner-mensaje error";
-        const msg = String(err && err.message ? err.message : err);
-        if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
-          escanerMensaje.textContent = "Permiso de cámara denegado. Permití el acceso a la cámara para escanear.";
-        } else {
-          escanerMensaje.textContent = "No se pudo iniciar la cámara (" + msg + "). Podés ingresar los números abajo.";
-        }
-      }
-    }
+    });
   }
 
   function buscarManual() {

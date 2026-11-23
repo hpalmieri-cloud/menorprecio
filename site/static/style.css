@@ -196,17 +196,23 @@ a { color: var(--azul); }
   padding: 1.2rem; display: flex; flex-direction: column; align-items: center;
 }
 .escaner-lector {
-  width: 100% !important; max-width: 380px; min-height: 240px;
+  width: 100% !important; max-width: 380px; height: 260px;
   background: #000; border-radius: 12px; overflow: hidden;
   position: relative;
 }
 .escaner-lector video {
-  border-radius: 12px; object-fit: cover; width: 100% !important;
+  width: 100% !important; height: 100% !important;
+  object-fit: cover; border-radius: 12px;
+}
+.escaner-lector canvas.drawingBuffer {
+  position: absolute; top: 0; left: 0;
+  width: 100% !important; height: 100% !important;
+  object-fit: cover; pointer-events: none;
 }
 .escaner-mira-guia {
   position: absolute; inset: 15% 8%;
   border: 2px dashed rgba(255, 255, 255, 0.6);
-  border-radius: 8px; pointer-events: none;
+  border-radius: 8px; pointer-events: none; z-index: 2;
 }
 .escaner-mira-guia::after {
   content: ""; position: absolute;
