@@ -337,6 +337,10 @@
   const fondoEscaner = document.getElementById("modal-escaner-fondo");
   const escanerMensaje = document.getElementById("escaner-mensaje");
 
+  const escanerManualForm = document.getElementById("escaner-manual-form");
+  const escanerManualInput = document.getElementById("escaner-manual-input");
+  const escanerManualBtn = document.getElementById("escaner-manual-btn");
+
   let html5QrCode = null;
   let escaneando = false;
 
@@ -361,6 +365,8 @@
       }
     }
     escaneando = false;
+    const guia = document.querySelector(".escaner-mira-guia");
+    if (guia) guia.remove();
   }
 
   function cerrarModalEscaner() {
@@ -369,8 +375,8 @@
   }
 
   async function procesarCodigoDetectado(codigo) {
-    const ean = String(codigo || "").trim();
-    if (!ean) return;
+    const ean = String(codigo || "").replace(/\D/g, "").trim();
+    if (!ean || ean.length < 6) return;
 
     if (navigator.vibrate) {
       try { navigator.vibrate(120); } catch (e) {}
@@ -393,7 +399,7 @@
       }
       setTimeout(() => {
         window.location.href = `/precios/producto/${encodeURIComponent(ean)}/`;
-      }, 400);
+      }, 300);
       return;
     }
 
@@ -415,6 +421,7 @@
   async function abrirEscaner() {
     if (!modalEscaner) return;
     modalEscaner.hidden = false;
+    if (escanerManualInput) escanerManualInput.value = "";
     if (escanerMensaje) {
       escanerMensaje.className = "escaner-mensaje";
       escanerMensaje.textContent = "Iniciando cámara...";
@@ -431,27 +438,55 @@
 
     try {
       if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode("escaner-lector");
+        const supported = window.Html5QrcodeSupportedFormats;
+        const formats = supported ? [
+          supported.EAN_13,
+          supported.EAN_8,
+          supported.UPC_A,
+          supported.UPC_E,
+          supported.CODE_128,
+          supported.CODE_39,
+        ] : undefined;
+
+        html5QrCode = new Html5Qrcode("escaner-lector", {
+          formatsToSupport: formats,
+          verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true,
+          },
+        });
       }
 
       escaneando = true;
       if (escanerMensaje) {
-        escanerMensaje.textContent = "Apuntá la cámara al código de barras del producto";
+        escanerMensaje.textContent = "Apuntá la cámara al código de barras";
       }
 
+      const lectorEl = document.getElementById("escaner-lector");
+      if (lectorEl && !lectorEl.querySelector(".escaner-mira-guia")) {
+        const guia = document.createElement("div");
+        guia.className = "escaner-mira-guia";
+        lectorEl.appendChild(guia);
+      }
+
+      // Configuración de cámara con alta resolución para leer códigos con nitidez
+      const cameraConfig = {
+        facingMode: "environment",
+        focusMode: "continuous",
+        width: { min: 640, ideal: 1280 },
+        height: { min: 480, ideal: 720 },
+      };
+
       await html5QrCode.start(
-        { facingMode: "environment" },
+        cameraConfig,
         {
           fps: 15,
-          qrbox: { width: 260, height: 160 },
-          aspectRatio: 1.33,
+          // Sin qrbox para que analice todo el ancho de la cámara y no corte los extremos
         },
         (decodedText) => {
           procesarCodigoDetectado(decodedText);
         },
-        () => {
-          // Frame sin código detectado, silencioso
-        }
+        () => {}
       );
     } catch (err) {
       escaneando = false;
@@ -460,9 +495,17 @@
         if (String(err).includes("NotAllowedError") || String(err).includes("Permission")) {
           escanerMensaje.textContent = "Permiso de cámara denegado. Permití el acceso a la cámara para escanear.";
         } else {
-          escanerMensaje.textContent = "No se pudo acceder a la cámara. Asegurate de dar permisos.";
+          escanerMensaje.textContent = "No se pudo iniciar la cámara trasera. Podés ingresar los números del código abajo.";
         }
       }
+    }
+  }
+
+  function buscarManual() {
+    if (!escanerManualInput) return;
+    const val = escanerManualInput.value.trim();
+    if (val) {
+      procesarCodigoDetectado(val);
     }
   }
 
@@ -474,6 +517,15 @@
   }
   if (fondoEscaner) {
     fondoEscaner.addEventListener("click", cerrarModalEscaner);
+  }
+  if (escanerManualBtn) {
+    escanerManualBtn.addEventListener("click", buscarManual);
+  }
+  if (escanerManualForm) {
+    escanerManualForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      buscarManual();
+    });
   }
 
   zona = leerZona();

@@ -79,6 +79,10 @@
     <div class="modal-escaner-cuerpo">
       <div id="escaner-lector" class="escaner-lector"></div>
       <p id="escaner-mensaje" class="escaner-mensaje">Apuntá la cámara al código de barras del producto</p>
+      <form class="escaner-manual" id="escaner-manual-form" onsubmit="return false">
+        <input type="text" id="escaner-manual-input" placeholder="O ingresá los números (ej.: 779...)" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+        <button type="button" id="escaner-manual-btn" class="escaner-manual-btn">Buscar</button>
+      </form>
     </div>
   </div>
 </div>
