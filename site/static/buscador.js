@@ -348,7 +348,7 @@
     if (window.Html5Qrcode) return true;
     return new Promise((resolve) => {
       const s = document.createElement("script");
-      s.src = "/assets/html5-qrcode.min.js";
+      s.src = "/assets/html5-qrcode.min.js" + sufijo;
       s.onload = () => resolve(true);
       s.onerror = () => resolve(false);
       document.head.appendChild(s);
@@ -365,8 +365,6 @@
       }
     }
     escaneando = false;
-    const guia = document.querySelector(".escaner-mira-guia");
-    if (guia) guia.remove();
   }
 
   function cerrarModalEscaner() {
@@ -436,44 +434,61 @@
       return;
     }
 
-    try {
-      if (!html5QrCode) {
-        const supported = window.Html5QrcodeSupportedFormats;
-        const formats = supported ? [
-          supported.EAN_13,
-          supported.EAN_8,
-          supported.UPC_A,
-          supported.UPC_E,
-          supported.CODE_128,
-          supported.CODE_39,
-        ] : undefined;
+    // Reiniciar instancia previa si quedó abierta
+    if (html5QrCode) {
+      try { await html5QrCode.stop(); } catch (e) {}
+      try { html5QrCode.clear(); } catch (e) {}
+      html5QrCode = null;
+    }
 
-        html5QrCode = new Html5Qrcode("escaner-lector", {
-          formatsToSupport: formats,
-          verbose: false,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true,
-          },
-        });
-      }
+    try {
+      const supported = window.Html5QrcodeSupportedFormats;
+      const formats = supported ? [
+        supported.EAN_13,
+        supported.EAN_8,
+        supported.UPC_A,
+        supported.UPC_E,
+        supported.CODE_128,
+      ] : undefined;
+
+      html5QrCode = new Html5Qrcode("escaner-lector", {
+        formatsToSupport: formats,
+        verbose: false,
+      });
 
       escaneando = true;
       if (escanerMensaje) {
-        escanerMensaje.className = "escaner-mensaje";
         escanerMensaje.textContent = "Apuntá al código de barras a unos 20 cm de distancia";
       }
 
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 140 },
-        },
-        (decodedText) => {
-          procesarCodigoDetectado(decodedText);
-        },
-        () => {}
-      );
+      const qrConfig = {
+        fps: 10,
+        qrbox: { width: 250, height: 140 },
+      };
+
+      // 1. Probar con facingMode: environment
+      try {
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          qrConfig,
+          procesarCodigoDetectado,
+          () => {}
+        );
+      } catch (errFacing) {
+        // 2. Si falla en iOS, buscar ID de cámara trasera explícitamente
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          const cam = cameras.find((c) => /back|trasera|rear|environment/i.test(c.label)) || cameras[cameras.length - 1];
+          await html5QrCode.start(
+            cam.id,
+            qrConfig,
+            procesarCodigoDetectado,
+            () => {}
+          );
+        } else {
+          throw errFacing;
+        }
+      }
     } catch (err) {
       console.error("Error cámara:", err);
       escaneando = false;
