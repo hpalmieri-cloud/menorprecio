@@ -469,19 +469,15 @@
         lectorEl.appendChild(guia);
       }
 
-      // Configuración de cámara con alta resolución para leer códigos con nitidez
-      const cameraConfig = {
-        facingMode: "environment",
-        focusMode: "continuous",
-        width: { min: 640, ideal: 1280 },
-        height: { min: 480, ideal: 720 },
-      };
-
       await html5QrCode.start(
-        cameraConfig,
+        { facingMode: "environment" },
         {
-          fps: 15,
-          // Sin qrbox para que analice todo el ancho de la cámara y no corte los extremos
+          fps: 10,
+          qrbox: (w, h) => {
+            const ancho = Math.floor(w * 0.88);
+            const alto = Math.min(Math.floor(h * 0.6), Math.floor(ancho * 0.55));
+            return { width: ancho, height: Math.max(120, alto) };
+          },
         },
         (decodedText) => {
           procesarCodigoDetectado(decodedText);
@@ -489,10 +485,12 @@
         () => {}
       );
     } catch (err) {
+      console.error("Error cámara:", err);
       escaneando = false;
       if (escanerMensaje) {
         escanerMensaje.className = "escaner-mensaje error";
-        if (String(err).includes("NotAllowedError") || String(err).includes("Permission")) {
+        const msg = String(err && err.message ? err.message : err);
+        if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
           escanerMensaje.textContent = "Permiso de cámara denegado. Permití el acceso a la cámara para escanear.";
         } else {
           escanerMensaje.textContent = "No se pudo iniciar la cámara trasera. Podés ingresar los números del código abajo.";
