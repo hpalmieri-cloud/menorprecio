@@ -640,6 +640,8 @@ def main() -> None:
          "Qué datos usa Menor Precio y cómo se gestionan cookies y publicidad."),
         ("contacto", "contacto.html", "Contacto — Menor Precio",
          "Escribinos por precios mal informados, productos faltantes o cadenas ausentes."),
+        ("404", "404.html", "Página no encontrada — Menor Precio",
+         "El producto o página solicitada no existe."),
     ]:
         (DIST / archivo).write_text(env.get_template(f"{nombre}.html").render(
             **ctx_base, ruta=f"/{archivo}", titulo=titulo, descripcion=desc,

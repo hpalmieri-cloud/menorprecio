@@ -438,13 +438,19 @@
   }
 
   function cerrarModalEscaner() {
+    procesandoCodigo = false;
     detenerEscaner();
     if (modalEscaner) modalEscaner.hidden = true;
   }
 
+  let procesandoCodigo = false;
+
   async function procesarCodigoDetectado(codigo) {
+    if (procesandoCodigo) return;
     const rawEan = String(codigo || "").replace(/\D/g, "").trim();
     if (!rawEan || rawEan.length < 8) return;
+
+    procesandoCodigo = true;
 
     // Normalizar a 13 dígitos si es un UPC de 12 dígitos
     const ean = rawEan.length === 12 ? "0" + rawEan : rawEan;
@@ -460,7 +466,7 @@
 
     if (escanerMensaje) {
       escanerMensaje.className = "escaner-mensaje exito";
-      escanerMensaje.innerHTML = `¡Código detectado: <strong>${esc(ean)}</strong>!<br>Buscando producto...`;
+      escanerMensaje.innerHTML = `¡Código detectado: <strong>${esc(ean)}</strong>!<br>Buscando en catálogo...`;
     }
 
     // 1. Verificar si está en los índices cargados en memoria
@@ -472,28 +478,17 @@
       if (escanerMensaje) {
         escanerMensaje.innerHTML = `¡Encontrado!<br><strong>${esc(hit[1])}</strong><br><span style="font-size:0.85em;color:#16a34a">Abriendo precios...</span>`;
       }
+      detenerEscaner();
       setTimeout(() => {
         window.location.href = `/precios/producto/${encodeURIComponent(hit[0])}/`;
-      }, 400);
+      }, 350);
       return;
     }
 
-    // 2. Si no está en el índice directo, intentar chequear si existe la página estática
-    try {
-      const resp = await fetch(`/precios/producto/${encodeURIComponent(ean)}/`, { method: "HEAD" });
-      if (resp.ok) {
-        if (escanerMensaje) {
-          escanerMensaje.innerHTML = `¡Encontrado!<br><span style="font-size:0.85em;color:#16a34a">Abriendo precios...</span>`;
-        }
-        setTimeout(() => {
-          window.location.href = `/precios/producto/${encodeURIComponent(ean)}/`;
-        }, 300);
-        return;
-      }
-    } catch (e) {}
-
-    // 3. Si no existe entre los productos del catálogo actual, no cerrar de golpe el modal:
+    // 2. Si no figura en las 3.500 fichas MVP, detener cámara y mostrar opciones claras:
     detenerEscaner();
+    procesandoCodigo = false;
+
     if (escanerMensaje) {
       escanerMensaje.className = "escaner-mensaje aviso";
       escanerMensaje.innerHTML = `
@@ -501,27 +496,30 @@
         <span style="font-size:0.85em;color:#92400e">Este producto específico no está entre los 3.500 más vendidos del catálogo actual.</span><br>
         <div style="margin-top:0.6rem;display:flex;gap:0.4rem;justify-content:center">
           <button type="button" id="btn-escaner-reintentar" style="padding:0.4rem 0.8rem;border-radius:6px;border:1px solid #ccc;background:#f3f4f6;font-size:0.85rem;cursor:pointer">Escanear otro</button>
-          <button type="button" id="btn-escaner-buscar" style="padding:0.4rem 0.8rem;border-radius:6px;border:none;background:#2563eb;color:#fff;font-size:0.85rem;cursor:pointer">Buscar código</button>
+          <button type="button" id="btn-escaner-buscar" style="padding:0.4rem 0.8rem;border-radius:6px;border:none;background:#2563eb;color:#fff;font-size:0.85rem;cursor:pointer">Buscar por nombre</button>
         </div>
       `;
 
       const btnReintentar = document.getElementById("btn-escaner-reintentar");
       if (btnReintentar) {
-        btnReintentar.onclick = () => abrirEscaner();
+        btnReintentar.onclick = () => {
+          procesandoCodigo = false;
+          abrirEscaner();
+        };
       }
       const btnBuscar = document.getElementById("btn-escaner-buscar");
       if (btnBuscar) {
         btnBuscar.onclick = () => {
           cerrarModalEscaner();
-          input.value = ean;
-          buscar();
+          input.value = "";
+          input.focus();
         };
       }
     }
-    input.value = ean;
   }
 
   async function abrirEscaner() {
+    procesandoCodigo = false;
     if (!modalEscaner) return;
     modalEscaner.hidden = false;
     if (escanerManualInput) escanerManualInput.value = "";
