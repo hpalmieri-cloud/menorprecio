@@ -1,5 +1,34 @@
 {% extends "base.html" %}
 
+{% block head %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Inicio",
+      "item": "https://menorprecio.com.ar/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Precios",
+      "item": "https://menorprecio.com.ar/precios/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "{{ nombre }}",
+      "item": "https://menorprecio.com.ar{{ ruta }}"
+    }
+  ]
+}
+</script>
+{% endblock %}
+
 {% block contenido %}
 <nav class="migas contenedor" aria-label="Ruta">
   <a href="/">Inicio</a> › <a href="/precios/">Precios</a> › {{ nombre }}

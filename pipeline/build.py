@@ -720,7 +720,7 @@ def main() -> None:
             **ctx_base,
             ruta=f"/precios/producto/{p['ean']}/",
             titulo=f"{corto(p['nombre'], 60)} — precios por cadena y localidad | Menor Precio",
-            descripcion=(f"Precios de {corto(p['nombre'], 70).lower()} en supermercados de "
+            descripcion=(f"Precios de {corto(p['nombre'], 70).lower()} desde {ars(pmin)} en supermercados de "
                          f"Argentina, comparables por cadena, provincia y localidad. "
                          f"Datos del SEPA al {fecha_larga(fecha)}."),
             ean=p["ean"],
