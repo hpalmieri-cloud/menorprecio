@@ -493,7 +493,7 @@
       escanerMensaje.className = "escaner-mensaje aviso";
       escanerMensaje.innerHTML = `
         Código leído: <strong>${esc(ean)}</strong><br>
-        <span style="font-size:0.85em;color:#92400e">Este producto específico no está entre los 3.500 más vendidos del catálogo actual.</span><br>
+        <span style="font-size:0.85em;color:#92400e">Este producto específico no figura en el catálogo actual.</span><br>
         <div style="margin-top:0.6rem;display:flex;gap:0.4rem;justify-content:center">
           <button type="button" id="btn-escaner-reintentar" style="padding:0.4rem 0.8rem;border-radius:6px;border:1px solid #ccc;background:#f3f4f6;font-size:0.85rem;cursor:pointer">Escanear otro</button>
           <button type="button" id="btn-escaner-buscar" style="padding:0.4rem 0.8rem;border-radius:6px;border:none;background:#2563eb;color:#fff;font-size:0.85rem;cursor:pointer">Buscar por nombre</button>

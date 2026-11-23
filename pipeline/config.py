@@ -33,7 +33,7 @@ PRECIO_MAXIMO = 5_000_000.0
 RATIO_MINIMO_MEDIANA = 0.5
 
 # Cuántas fichas de producto se publican en el MVP.
-FICHAS_MVP = 3500
+FICHAS_MVP = 6000
 
 # ID de editor de AdSense ("ca-pub-..."). Vacío = sin anuncios ni ads.txt.
 ADSENSE_CLIENT = "ca-pub-1989926070258685"

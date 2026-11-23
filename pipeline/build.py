@@ -167,7 +167,7 @@ def cargar(con: duckdb.DuckDBPyConnection):
                 seleccion.append(p)
 
     # 2. Completar hasta FICHAS_MVP de manera equitativa por categoría
-    cuota_max = 400
+    cuota_max = 800
     restantes = [p for p in validos if p["ean"] not in seleccion_set]
     restantes.sort(key=lambda p: (-(p["n_sucursales"] or 0), p["precio_min"] or 0))
 
