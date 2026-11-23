@@ -122,50 +122,7 @@
     celulares: ["celular"],
   };
 
-  function filtrar(indices, q, mapa) {
-    const tokens = q.trim().split(/\s+/).filter(Boolean);
-    if (!tokens.length) return { hits: [], empresas: [], fuera: 0 };
-
-    // Expandir tokens con sinónimos (ej: "televisor" busca "smart tv", "led tv", "tv", "televisor")
-    const tokensGrupos = tokens.map((t) => {
-      const syns = SINONIMOS[t] || [t];
-      return syns.map(norm);
-    });
-
-    const primerGrupo = tokensGrupos[0];
-
-    // 1. Encontrar todos los productos que contienen las palabras buscadas
-    const candidatos = [];
-    for (const item of indices) {
-      const nom = norm(item[1]);
-      const mrc = norm(item[2]);
-      const textoCompleto = nom + " " + mrc;
-
-      // Cada token (o alguno de sus sinónimos) debe figurar en el texto
-      const coincide = tokensGrupos.every((grupo) =>
-        grupo.some((syn) => textoCompleto.includes(syn))
-      );
-      if (!coincide) continue;
-
-      // Es prefijo si el nombre comienza con la búsqueda o con el primer término/sinónimo
-      const esPrefijo =
-        nom.startsWith(q) ||
-        primerGrupo.some((syn) =>
-          nom.startsWith(syn + " ") || nom.startsWith(syn) || nom === syn
-        );
-
-      candidatos.push({ item, esPrefijo });
-    }
-
-    // 2. Si hay coincidencias donde el nombre del producto empieza con el término buscado
-    // (ej: "leche", "arroz", "aceite", "yerba playadito", "dulce de leche", "heladera", "televisor"), filtramos estrictamente
-    // para excluir productos derivados que solo contienen la palabra en el medio (alfajores, flanes, etc.).
-    const prefijos = candidatos.filter((c) => c.esPrefijo);
-    const usarEstricto =
-      prefijos.length >= 3 || (prefijos.length > 0 && prefijos.length === candidatos.length);
-
-    const seleccion = usarEstricto ? prefijos : candidatos;
-
+  function procesarHits(seleccion, mapa) {
     const hits = [];
     let fuera = 0;
     for (const { item } of seleccion) {
@@ -196,11 +153,76 @@
       (a.precio || Infinity) - (b.precio || Infinity) ||
       a.item[1].localeCompare(b.item[1], "es")
     );
-    // Empresas de todos los resultados, no solo de las filas que se ven.
     const empresas = Array.from(
       new Set(hits.map((h) => h.cadena).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b, "es"));
     return { hits: hits.slice(0, MAX), empresas, fuera };
+  }
+
+  function filtrar(indices, q, mapa) {
+    const rawQ = q.trim();
+    if (!rawQ) return { hits: [], empresas: [], fuera: 0 };
+
+    // Si es un código numérico (escaneado o tipeado)
+    if (/^\d{6,14}$/.test(rawQ)) {
+      const qSinCero = rawQ.replace(/^0+/, "");
+      const candidatosNum = [];
+      for (const item of indices) {
+        const eanItem = item[0];
+        const eanSinCero = eanItem.replace(/^0+/, "");
+        if (eanItem === rawQ || eanSinCero === qSinCero || eanItem.includes(rawQ)) {
+          candidatosNum.push({ item, esPrefijo: true });
+        }
+      }
+      if (candidatosNum.length > 0) {
+        return procesarHits(candidatosNum, mapa);
+      }
+    }
+
+    const tokens = rawQ.split(/\s+/).filter(Boolean);
+    if (!tokens.length) return { hits: [], empresas: [], fuera: 0 };
+
+    // Expandir tokens con sinónimos (ej: "televisor" busca "smart tv", "led tv", "tv", "televisor")
+    const tokensGrupos = tokens.map((t) => {
+      const syns = SINONIMOS[t] || [t];
+      return syns.map(norm);
+    });
+
+    const primerGrupo = tokensGrupos[0];
+
+    // 1. Encontrar todos los productos que contienen las palabras buscadas
+    const candidatos = [];
+    for (const item of indices) {
+      const nom = norm(item[1]);
+      const mrc = norm(item[2]);
+      const ean = item[0];
+      const textoCompleto = nom + " " + mrc + " " + ean;
+
+      // Cada token (o alguno de sus sinónimos) debe figurar en el texto
+      const coincide = tokensGrupos.every((grupo) =>
+        grupo.some((syn) => textoCompleto.includes(syn))
+      );
+      if (!coincide) continue;
+
+      // Es prefijo si el nombre comienza con la búsqueda o con el primer término/sinónimo
+      const esPrefijo =
+        nom.startsWith(q) ||
+        primerGrupo.some((syn) =>
+          nom.startsWith(syn + " ") || nom.startsWith(syn) || nom === syn
+        );
+
+      candidatos.push({ item, esPrefijo });
+    }
+
+    // 2. Si hay coincidencias donde el nombre del producto empieza con el término buscado
+    // (ej: "leche", "arroz", "aceite", "yerba playadito", "dulce de leche", "heladera", "televisor"), filtramos estrictamente
+    // para excluir productos derivados que solo contienen la palabra en el medio (alfajores, flanes, etc.).
+    const prefijos = candidatos.filter((c) => c.esPrefijo);
+    const usarEstricto =
+      prefijos.length >= 3 || (prefijos.length > 0 && prefijos.length === candidatos.length);
+
+    const seleccion = usarEstricto ? prefijos : candidatos;
+    return procesarHits(seleccion, mapa);
   }
 
   function pintarVacio(texto, ctx) {
@@ -385,8 +407,16 @@
   }
 
   async function procesarCodigoDetectado(codigo) {
-    const ean = String(codigo || "").replace(/\D/g, "").trim();
-    if (!ean || ean.length < 6) return;
+    const rawEan = String(codigo || "").replace(/\D/g, "").trim();
+    if (!rawEan || rawEan.length < 8) return;
+
+    // Normalizar a 13 dígitos si es un UPC de 12 dígitos
+    const ean = rawEan.length === 12 ? "0" + rawEan : rawEan;
+
+    // Pausar el escáner para congelar el fotograma y evitar lecturas repetidas
+    if (window.Quagga && escaneando) {
+      try { Quagga.pause(); } catch (e) {}
+    }
 
     if (navigator.vibrate) {
       try { navigator.vibrate(120); } catch (e) {}
@@ -394,22 +424,21 @@
 
     if (escanerMensaje) {
       escanerMensaje.className = "escaner-mensaje exito";
-      escanerMensaje.textContent = `¡Código detectado (${ean})! Buscando...`;
+      escanerMensaje.innerHTML = `¡Código detectado: <strong>${esc(ean)}</strong>!<br>Buscando producto...`;
     }
-
-    detenerEscaner();
 
     // 1. Verificar si está en los índices cargados en memoria
     const indices = await cargarTodo();
-    const hit = indices.find((it) => it[0] === ean);
+    const eanSinCero = ean.replace(/^0+/, "");
+    const hit = indices.find((it) => it[0] === ean || it[0].replace(/^0+/, "") === eanSinCero);
 
     if (hit) {
       if (escanerMensaje) {
-        escanerMensaje.textContent = `¡Encontrado! Entrando a ${hit[1]}...`;
+        escanerMensaje.innerHTML = `¡Encontrado!<br><strong>${esc(hit[1])}</strong><br><span style="font-size:0.85em;color:#16a34a">Abriendo precios...</span>`;
       }
       setTimeout(() => {
-        window.location.href = `/precios/producto/${encodeURIComponent(ean)}/`;
-      }, 300);
+        window.location.href = `/precios/producto/${encodeURIComponent(hit[0])}/`;
+      }, 400);
       return;
     }
 
@@ -417,15 +446,43 @@
     try {
       const resp = await fetch(`/precios/producto/${encodeURIComponent(ean)}/`, { method: "HEAD" });
       if (resp.ok) {
-        window.location.href = `/precios/producto/${encodeURIComponent(ean)}/`;
+        if (escanerMensaje) {
+          escanerMensaje.innerHTML = `¡Encontrado!<br><span style="font-size:0.85em;color:#16a34a">Abriendo precios...</span>`;
+        }
+        setTimeout(() => {
+          window.location.href = `/precios/producto/${encodeURIComponent(ean)}/`;
+        }, 300);
         return;
       }
     } catch (e) {}
 
-    // 3. Si no existe ficha exacta, cerrar modal y escribir el código en el buscador
-    cerrarModalEscaner();
+    // 3. Si no existe entre los productos del catálogo actual, no cerrar de golpe el modal:
+    detenerEscaner();
+    if (escanerMensaje) {
+      escanerMensaje.className = "escaner-mensaje aviso";
+      escanerMensaje.innerHTML = `
+        Código leído: <strong>${esc(ean)}</strong><br>
+        <span style="font-size:0.85em;color:#92400e">Este producto específico no está entre los 3.500 más vendidos del catálogo actual.</span><br>
+        <div style="margin-top:0.6rem;display:flex;gap:0.4rem;justify-content:center">
+          <button type="button" id="btn-escaner-reintentar" style="padding:0.4rem 0.8rem;border-radius:6px;border:1px solid #ccc;background:#f3f4f6;font-size:0.85rem;cursor:pointer">Escanear otro</button>
+          <button type="button" id="btn-escaner-buscar" style="padding:0.4rem 0.8rem;border-radius:6px;border:none;background:#2563eb;color:#fff;font-size:0.85rem;cursor:pointer">Buscar código</button>
+        </div>
+      `;
+
+      const btnReintentar = document.getElementById("btn-escaner-reintentar");
+      if (btnReintentar) {
+        btnReintentar.onclick = () => abrirEscaner();
+      }
+      const btnBuscar = document.getElementById("btn-escaner-buscar");
+      if (btnBuscar) {
+        btnBuscar.onclick = () => {
+          cerrarModalEscaner();
+          input.value = ean;
+          buscar();
+        };
+      }
+    }
     input.value = ean;
-    buscar();
   }
 
   async function abrirEscaner() {
@@ -436,6 +493,9 @@
       escanerMensaje.className = "escaner-mensaje";
       escanerMensaje.textContent = "Iniciando cámara...";
     }
+
+    // Pre-cargar índices en segundo plano mientras enciende la cámara
+    cargarTodo();
 
     const ok = await cargarLibreriaEscaner();
     if (!ok || !window.Quagga) {
@@ -474,7 +534,6 @@
           "ean_reader",
           "ean_8_reader",
           "upc_reader",
-          "upc_e_reader",
         ],
       },
       locate: true,
@@ -499,25 +558,15 @@
     Quagga.onDetected((result) => {
       if (!result || !result.codeResult || !result.codeResult.code) return;
       const code = String(result.codeResult.code).replace(/\D/g, "");
-      if (code.length < 8) return;
+      if (!code || code.length < 8) return;
 
-      // Si pasa el checksum EAN oficial, es una lectura 100% válida y confirmada
-      if (validarChecksumEAN(code)) {
-        procesarCodigoDetectado(code);
+      // Descartar lecturas de ruido que no cumplan el checksum EAN oficial
+      if (!validarChecksumEAN(code)) {
         return;
       }
 
-      // Si no tiene checksum estándar, exigir 2 lecturas consecutivas iguales
-      if (code === ultimoCodigo) {
-        conteoLecturas++;
-      } else {
-        ultimoCodigo = code;
-        conteoLecturas = 1;
-      }
-
-      if (conteoLecturas >= 2) {
-        procesarCodigoDetectado(code);
-      }
+      // Si pasa checksum oficial, procesarlo directamente
+      procesarCodigoDetectado(code);
     });
   }
 
