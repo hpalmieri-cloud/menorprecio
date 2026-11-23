@@ -390,7 +390,43 @@
     });
   }
 
+  let timerDetectorNativo = null;
+  function iniciarDetectorNativo(video) {
+    detenerDetectorNativo();
+    if (!video || !("BarcodeDetector" in window)) return;
+    try {
+      const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a"] });
+      let procesandoFrame = false;
+
+      timerDetectorNativo = setInterval(async () => {
+        if (!escaneando || procesandoFrame || video.readyState < 2) return;
+        procesandoFrame = true;
+        try {
+          const barcodes = await detector.detect(video);
+          if (barcodes && barcodes.length > 0) {
+            const raw = String(barcodes[0].rawValue || "").replace(/\D/g, "");
+            if (raw && raw.length >= 8 && validarChecksumEAN(raw)) {
+              detenerDetectorNativo();
+              procesarCodigoDetectado(raw);
+            }
+          }
+        } catch (e) {
+        } finally {
+          procesandoFrame = false;
+        }
+      }, 100);
+    } catch (e) {}
+  }
+
+  function detenerDetectorNativo() {
+    if (timerDetectorNativo) {
+      clearInterval(timerDetectorNativo);
+      timerDetectorNativo = null;
+    }
+  }
+
   function detenerEscaner() {
+    detenerDetectorNativo();
     if (window.Quagga && escaneando) {
       try {
         Quagga.stop();
@@ -521,14 +557,16 @@
         target: lector,
         constraints: {
           facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
         },
       },
       locator: {
-        patchSize: "medium",
-        halfSample: true,
+        patchSize: "large",
+        halfSample: false,
       },
       numOfWorkers: 0,
-      frequency: 10,
+      frequency: 15,
       decoder: {
         readers: [
           "ean_reader",
@@ -552,6 +590,10 @@
       if (escanerMensaje) {
         escanerMensaje.textContent = "Apuntá la barra roja al código (a unos 15-20 cm)";
       }
+
+      // Detector nativo por hardware (ultra-rápido en Android Chrome)
+      const v = lector.querySelector("video");
+      if (v) iniciarDetectorNativo(v);
     });
 
     Quagga.offDetected();
