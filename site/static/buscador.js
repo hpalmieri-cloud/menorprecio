@@ -367,7 +367,7 @@
   let conteoLecturas = 0;
 
   function validarChecksumEAN(ean) {
-    if (!/^\d{8}$|^\d{12,14}$/.test(ean)) return false;
+    if (!/^\d{12,14}$/.test(ean)) return false;
     const digits = ean.split("").map(Number);
     const check = digits.pop();
     let sum = 0;
@@ -395,7 +395,7 @@
     detenerDetectorNativo();
     if (!video || !("BarcodeDetector" in window)) return;
     try {
-      const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a"] });
+      const detector = new BarcodeDetector({ formats: ["ean_13", "upc_a"] });
       let procesandoFrame = false;
 
       timerDetectorNativo = setInterval(async () => {
@@ -405,7 +405,7 @@
           const barcodes = await detector.detect(video);
           if (barcodes && barcodes.length > 0) {
             const raw = String(barcodes[0].rawValue || "").replace(/\D/g, "");
-            if (raw && raw.length >= 8 && validarChecksumEAN(raw)) {
+            if (raw && raw.length >= 12 && validarChecksumEAN(raw)) {
               detenerDetectorNativo();
               procesarCodigoDetectado(raw);
             }
@@ -448,7 +448,7 @@
   async function procesarCodigoDetectado(codigo) {
     if (procesandoCodigo) return;
     const rawEan = String(codigo || "").replace(/\D/g, "").trim();
-    if (!rawEan || rawEan.length < 8) return;
+    if (!rawEan || rawEan.length < 12) return;
 
     procesandoCodigo = true;
 
@@ -568,7 +568,6 @@
       decoder: {
         readers: [
           "ean_reader",
-          "ean_8_reader",
           "upc_reader",
         ],
       },
@@ -598,7 +597,7 @@
     Quagga.onDetected((result) => {
       if (!result || !result.codeResult || !result.codeResult.code) return;
       const code = String(result.codeResult.code).replace(/\D/g, "");
-      if (!code || code.length < 8) return;
+      if (!code || code.length < 12) return;
 
       // Descartar lecturas de ruido que no cumplan el checksum EAN oficial
       if (!validarChecksumEAN(code)) {
