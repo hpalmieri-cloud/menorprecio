@@ -11,6 +11,19 @@
     <form class="buscador" role="search" onsubmit="return false">
       <label class="sr" for="q">Buscar producto</label>
       <input id="q" type="search" placeholder="Ej.: leche entera, yerba, detergente…" autocomplete="off">
+      <button type="button" id="btn-escanear" class="btn-escanear" title="Escanear código de barras con la cámara" aria-label="Escanear código de barras">
+        <svg class="icono-escanear" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
+          <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+          <path d="M21 17v2a2 2 0 0 1-2 2h-2"/>
+          <path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+          <line x1="7" y1="8" x2="7" y2="16"/>
+          <line x1="10" y1="8" x2="10" y2="16"/>
+          <line x1="14" y1="8" x2="14" y2="16"/>
+          <line x1="17" y1="8" x2="17" y2="16"/>
+        </svg>
+        <span class="btn-escanear-texto">Escanear</span>
+      </button>
     </form>
     <p class="pista">O mirá los <a href="#categorias">precios por categoría</a> o los <a href="/precios/zona/">precios de tu zona</a>.</p>
   </div>
@@ -55,6 +68,20 @@
     </div>
   </div>
 </section>
+
+<div id="modal-escaner" class="modal-escaner" role="dialog" aria-modal="true" aria-label="Escáner de código de barras" hidden>
+  <div class="modal-escaner-fondo" id="modal-escaner-fondo"></div>
+  <div class="modal-escaner-caja">
+    <div class="modal-escaner-cabecera">
+      <h3 class="modal-escaner-titulo">Escanear código de barras</h3>
+      <button type="button" id="btn-cerrar-escaner" class="btn-cerrar-escaner" aria-label="Cerrar escáner">&times;</button>
+    </div>
+    <div class="modal-escaner-cuerpo">
+      <div id="escaner-lector" class="escaner-lector"></div>
+      <p id="escaner-mensaje" class="escaner-mensaje">Apuntá la cámara al código de barras del producto</p>
+    </div>
+  </div>
+</div>
 
 {% endblock %}
 

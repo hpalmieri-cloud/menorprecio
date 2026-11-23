@@ -330,5 +330,151 @@
     if (input.value.trim().length >= 2) buscar();
   });
 
+  // ---------- Lector de código de barras (Cámara) ----------
+  const btnEscanear = document.getElementById("btn-escanear");
+  const modalEscaner = document.getElementById("modal-escaner");
+  const btnCerrarEscaner = document.getElementById("btn-cerrar-escaner");
+  const fondoEscaner = document.getElementById("modal-escaner-fondo");
+  const escanerMensaje = document.getElementById("escaner-mensaje");
+
+  let html5QrCode = null;
+  let escaneando = false;
+
+  async function cargarLibreriaEscaner() {
+    if (window.Html5Qrcode) return true;
+    return new Promise((resolve) => {
+      const s = document.createElement("script");
+      s.src = "/assets/html5-qrcode.min.js";
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+    });
+  }
+
+  async function detenerEscaner() {
+    if (html5QrCode && escaneando) {
+      try {
+        await html5QrCode.stop();
+        html5QrCode.clear();
+      } catch (e) {
+        // ignorar error al detener
+      }
+    }
+    escaneando = false;
+  }
+
+  function cerrarModalEscaner() {
+    detenerEscaner();
+    if (modalEscaner) modalEscaner.hidden = true;
+  }
+
+  async function procesarCodigoDetectado(codigo) {
+    const ean = String(codigo || "").trim();
+    if (!ean) return;
+
+    if (navigator.vibrate) {
+      try { navigator.vibrate(120); } catch (e) {}
+    }
+
+    if (escanerMensaje) {
+      escanerMensaje.className = "escaner-mensaje exito";
+      escanerMensaje.textContent = `¡Código detectado (${ean})! Buscando...`;
+    }
+
+    await detenerEscaner();
+
+    // 1. Verificar si está en los índices cargados en memoria
+    const indices = await cargarTodo();
+    const hit = indices.find((it) => it[0] === ean);
+
+    if (hit) {
+      if (escanerMensaje) {
+        escanerMensaje.textContent = `¡Encontrado! Entrando a ${hit[1]}...`;
+      }
+      setTimeout(() => {
+        window.location.href = `/precios/producto/${encodeURIComponent(ean)}/`;
+      }, 400);
+      return;
+    }
+
+    // 2. Si no está en el índice directo, intentar chequear si existe la página estática
+    try {
+      const resp = await fetch(`/precios/producto/${encodeURIComponent(ean)}/`, { method: "HEAD" });
+      if (resp.ok) {
+        window.location.href = `/precios/producto/${encodeURIComponent(ean)}/`;
+        return;
+      }
+    } catch (e) {}
+
+    // 3. Si no existe ficha exacta, cerrar modal y escribir el código en el buscador
+    cerrarModalEscaner();
+    input.value = ean;
+    buscar();
+  }
+
+  async function abrirEscaner() {
+    if (!modalEscaner) return;
+    modalEscaner.hidden = false;
+    if (escanerMensaje) {
+      escanerMensaje.className = "escaner-mensaje";
+      escanerMensaje.textContent = "Iniciando cámara...";
+    }
+
+    const ok = await cargarLibreriaEscaner();
+    if (!ok || !window.Html5Qrcode) {
+      if (escanerMensaje) {
+        escanerMensaje.className = "escaner-mensaje error";
+        escanerMensaje.textContent = "No se pudo cargar el lector de cámara. Verificá tu conexión.";
+      }
+      return;
+    }
+
+    try {
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("escaner-lector");
+      }
+
+      escaneando = true;
+      if (escanerMensaje) {
+        escanerMensaje.textContent = "Apuntá la cámara al código de barras del producto";
+      }
+
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        {
+          fps: 15,
+          qrbox: { width: 260, height: 160 },
+          aspectRatio: 1.33,
+        },
+        (decodedText) => {
+          procesarCodigoDetectado(decodedText);
+        },
+        () => {
+          // Frame sin código detectado, silencioso
+        }
+      );
+    } catch (err) {
+      escaneando = false;
+      if (escanerMensaje) {
+        escanerMensaje.className = "escaner-mensaje error";
+        if (String(err).includes("NotAllowedError") || String(err).includes("Permission")) {
+          escanerMensaje.textContent = "Permiso de cámara denegado. Permití el acceso a la cámara para escanear.";
+        } else {
+          escanerMensaje.textContent = "No se pudo acceder a la cámara. Asegurate de dar permisos.";
+        }
+      }
+    }
+  }
+
+  if (btnEscanear) {
+    btnEscanear.addEventListener("click", abrirEscaner);
+  }
+  if (btnCerrarEscaner) {
+    btnCerrarEscaner.addEventListener("click", cerrarModalEscaner);
+  }
+  if (fondoEscaner) {
+    fondoEscaner.addEventListener("click", cerrarModalEscaner);
+  }
+
   zona = leerZona();
 })();
