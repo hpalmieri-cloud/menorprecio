@@ -262,9 +262,10 @@
       return;
     }
 
+    const displayTexto = (/^\d{6,14}$/.test(texto) && hits.length === 1) ? hits[0].item[1] : texto;
     titulo.textContent = ctx.conZona
-      ? `“${texto}” en ${zona.nombre}`
-      : `“${texto}” en todo el país`;
+      ? `“${displayTexto}” en ${zona.nombre}`
+      : `“${displayTexto}” en todo el país`;
     nota.textContent = ctx.conZona
       ? "Proveedor y dirección del local más barato de tu zona. Ordenado de menor a mayor precio."
       : "Proveedor del precio mínimo nacional. Elegí tu localidad para ver también la dirección. Ordenado de menor a mayor precio.";
@@ -448,73 +449,39 @@
   async function procesarCodigoDetectado(codigo) {
     if (procesandoCodigo) return;
     const rawEan = String(codigo || "").replace(/\D/g, "").trim();
-    if (!rawEan || rawEan.length < 12) return;
+    if (!rawEan || rawEan.length < 6) return;
 
     procesandoCodigo = true;
 
     // Normalizar a 13 dígitos si es un UPC de 12 dígitos
     const ean = rawEan.length === 12 ? "0" + rawEan : rawEan;
 
-    // Pausar el escáner para congelar el fotograma y evitar lecturas repetidas
-    if (window.Quagga && escaneando) {
-      try { Quagga.pause(); } catch (e) {}
-    }
-
     if (navigator.vibrate) {
       try { navigator.vibrate(120); } catch (e) {}
     }
 
-    if (escanerMensaje) {
-      escanerMensaje.className = "escaner-mensaje exito";
-      escanerMensaje.innerHTML = `¡Código detectado: <strong>${esc(ean)}</strong>!<br>Buscando en catálogo...`;
-    }
+    // 1. Apagar el escáner y cerrar el modal inmediatamente
+    cerrarModalEscaner();
 
-    // 1. Verificar si está en los índices cargados en memoria
+    // 2. Colocar el código en la barra de búsqueda principal
+    input.value = ean;
+
+    // 3. Ejecutar la búsqueda con el mismo motor de resultados que el ingreso manual
+    todoElPais = false;
+    await buscar();
+
+    // 4. Si encontramos el producto, reemplazar el input por el nombre para mayor claridad
     const indices = await cargarTodo();
     const eanSinCero = ean.replace(/^0+/, "");
     const hit = indices.find((it) => it[0] === ean || it[0].replace(/^0+/, "") === eanSinCero);
-
     if (hit) {
-      if (escanerMensaje) {
-        escanerMensaje.innerHTML = `¡Encontrado!<br><strong>${esc(hit[1])}</strong><br><span style="font-size:0.85em;color:#16a34a">Abriendo precios...</span>`;
-      }
-      detenerEscaner();
-      setTimeout(() => {
-        window.location.href = `/precios/producto/${encodeURIComponent(hit[0])}/`;
-      }, 350);
-      return;
+      input.value = hit[1];
     }
 
-    // 2. Si no figura en las 3.500 fichas MVP, detener cámara y mostrar opciones claras:
-    detenerEscaner();
-    procesandoCodigo = false;
-
-    if (escanerMensaje) {
-      escanerMensaje.className = "escaner-mensaje aviso";
-      escanerMensaje.innerHTML = `
-        Código leído: <strong>${esc(ean)}</strong><br>
-        <span style="font-size:0.85em;color:#92400e">Este producto específico no figura en el catálogo actual.</span><br>
-        <div style="margin-top:0.6rem;display:flex;gap:0.4rem;justify-content:center">
-          <button type="button" id="btn-escaner-reintentar" style="padding:0.4rem 0.8rem;border-radius:6px;border:1px solid #ccc;background:#f3f4f6;font-size:0.85rem;cursor:pointer">Escanear otro</button>
-          <button type="button" id="btn-escaner-buscar" style="padding:0.4rem 0.8rem;border-radius:6px;border:none;background:#2563eb;color:#fff;font-size:0.85rem;cursor:pointer">Buscar por nombre</button>
-        </div>
-      `;
-
-      const btnReintentar = document.getElementById("btn-escaner-reintentar");
-      if (btnReintentar) {
-        btnReintentar.onclick = () => {
-          procesandoCodigo = false;
-          abrirEscaner();
-        };
-      }
-      const btnBuscar = document.getElementById("btn-escaner-buscar");
-      if (btnBuscar) {
-        btnBuscar.onclick = () => {
-          cerrarModalEscaner();
-          input.value = "";
-          input.focus();
-        };
-      }
+    // 5. Desplazar la vista suavemente a la tabla de resultados
+    const sec = document.getElementById("resultados-seccion");
+    if (sec && !sec.hidden) {
+      sec.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
 
