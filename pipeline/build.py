@@ -185,15 +185,17 @@ def cargar(con: duckdb.DuckDBPyConnection):
     return productos, seleccion, fecha
 
 
-def cargar_ofertas(con, eans: list[str]) -> dict[str, list[dict]]:
-    if not eans:
-        return {}
-    lista = ",".join("'" + e.replace("'", "") + "'" for e in eans)
+def cargar_ofertas(con) -> tuple[dict[str, list[dict]], dict[str, int], dict[str, list[dict]]]:
+    """Carga las 20 ofertas más baratas, total de sucursales y resumen por cadena desde DuckDB."""
     filas = con.execute(f"""
         SELECT ean, bandera, sucursal, localidad, precio_lista,
                promo1, promo1_leyenda, promo2, promo2_leyenda
-        FROM '{PRECIOS_PARQUET.as_posix()}'
-        WHERE ean IN ({lista})
+        FROM (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY ean ORDER BY precio_lista) as rn
+            FROM precios_seleccion
+            WHERE precio_lista > 0
+        )
+        WHERE rn <= {OFERTAS_POR_FICHA}
         ORDER BY ean, precio_lista
     """).fetchall()
     ofertas: dict[str, list[dict]] = {}
@@ -209,7 +211,31 @@ def cargar_ofertas(con, eans: list[str]) -> dict[str, list[dict]]:
             "promo_fmt": ars(promo) if promo else "",
             "promo_leyenda": leyenda or "",
         })
-    return ofertas
+
+    conteos = dict(con.execute("""
+        SELECT ean, COUNT(*)
+        FROM precios_seleccion
+        WHERE precio_lista > 0
+        GROUP BY ean
+    """).fetchall())
+
+    cadenas_filas = con.execute("""
+        SELECT ean, bandera, MIN(precio_lista), MAX(precio_lista), COUNT(*)
+        FROM precios_seleccion
+        WHERE precio_lista > 0
+        GROUP BY ean, bandera
+        ORDER BY ean, 3
+    """).fetchall()
+    resumen_cadenas: dict[str, list[dict]] = {}
+    for ean, bandera, min_p, max_p, n in cadenas_filas:
+        resumen_cadenas.setdefault(ean, []).append({
+            "bandera": bandera,
+            "min_fmt": ars(min_p),
+            "max_fmt": ars(max_p),
+            "n": n,
+        })
+
+    return ofertas, conteos, resumen_cadenas
 
 
 def cargar_ubicaciones(con) -> list[dict]:
@@ -277,18 +303,15 @@ def cargar_ubicaciones(con) -> list[dict]:
     return localidades
 
 
-def cargar_zonas(con, eans: list[str]) -> dict[str, dict[str, list[dict]]]:
+def cargar_zonas(con) -> dict[str, dict[str, list[dict]]]:
     """Precio mínimo por producto, provincia y cadena."""
-    if not eans:
-        return {}
-    lista = ",".join("'" + e.replace("'", "") + "'" for e in eans)
-    filas = con.execute(f"""
+    filas = con.execute("""
         SELECT ean, provincia, bandera,
                MIN(precio_lista) AS precio,
                arg_min(localidad, precio_lista) AS localidad,
                COUNT(DISTINCT suc_key) AS n
-        FROM '{PRECIOS_PARQUET.as_posix()}'
-        WHERE ean IN ({lista}) AND precio_lista > 0 AND provincia IS NOT NULL
+        FROM precios_seleccion
+        WHERE precio_lista > 0 AND provincia IS NOT NULL
         GROUP BY 1, 2, 3
     """).fetchall()
     zonas: dict[str, dict[str, list[dict]]] = {}
@@ -308,13 +331,10 @@ def cargar_zonas(con, eans: list[str]) -> dict[str, dict[str, list[dict]]]:
     return zonas
 
 
-def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
+def escribir_zonas_locales(con, destino: Path) -> int:
     """Un JSON por producto con el precio de cada cadena en cada localidad."""
-    if not eans:
-        return 0
-    lista = ",".join("'" + e.replace("'", "") + "'" for e in eans)
     destino.mkdir(parents=True, exist_ok=True)
-    cur = con.execute(f"""
+    cur = con.execute("""
         SELECT ean, provincia, localidad, bandera, MIN(precio_lista),
                COUNT(DISTINCT suc_key),
                arg_min(TRIM(COALESCE(calle, '') || ' ' ||
@@ -322,8 +342,8 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
                                  OR TRIM(numero) IN ('', '0', 'S/N', 'SN')
                             THEN '' ELSE TRIM(numero) END),
                        precio_lista)
-        FROM '{PRECIOS_PARQUET.as_posix()}'
-        WHERE ean IN ({lista}) AND precio_lista > 0
+        FROM precios_seleccion
+        WHERE precio_lista > 0
           AND localidad IS NOT NULL AND provincia IS NOT NULL
         GROUP BY 1, 2, 3, 4
         ORDER BY 1, 2, 3, 4
@@ -385,26 +405,20 @@ def escribir_zonas_locales(con, eans: list[str], destino: Path) -> int:
     return escritos
 
 
-def escribir_localidades(con, eans: list[str], localidades: list[dict],
-                         destino: Path) -> int:
+def escribir_localidades(con, localidades: list[dict], destino: Path) -> int:
     """Un JSON por localidad con el precio de cada producto disponible.
 
     El precio es el mínimo de la zona, con la cadena y la dirección del local
     más barato. Lo usa el buscador para responder «cuánto sale X en mi
     localidad y dónde».
     """
-    if not eans:
-        return 0
-    lista = ",".join("'" + e.replace("'", "") + "'" for e in eans)
-    precios = f"'{PRECIOS_PARQUET.as_posix()}'"
-
-    # Mapa (provincia, localidad tal como viene) -> zona normalizada.
-    pares = con.execute(f"""
+    pares = con.execute("""
         SELECT DISTINCT provincia, localidad
-        FROM {precios}
-        WHERE ean IN ({lista}) AND precio_lista > 0
+        FROM precios_seleccion
+        WHERE precio_lista > 0
           AND localidad IS NOT NULL AND provincia IS NOT NULL
     """).fetchall()
+    con.execute("DROP TABLE IF EXISTS zona_mapa")
     con.execute("""
         CREATE TEMP TABLE zona_mapa (
             provincia VARCHAR, localidad VARCHAR, iso VARCHAR, clave VARCHAR
@@ -418,7 +432,7 @@ def escribir_localidades(con, eans: list[str], localidades: list[dict],
     if mapa_filas:
         con.executemany("INSERT INTO zona_mapa VALUES (?, ?, ?, ?)", mapa_filas)
 
-    cur = con.execute(f"""
+    cur = con.execute("""
         SELECT m.iso, m.clave, g.ean, g.precio, g.bandera, g.n, g.direccion
         FROM (
             SELECT provincia, localidad, ean,
@@ -430,8 +444,8 @@ def escribir_localidades(con, eans: list[str], localidades: list[dict],
                                      OR TRIM(numero) IN ('', '0', 'S/N', 'SN')
                                 THEN '' ELSE TRIM(numero) END),
                            precio_lista) AS direccion
-            FROM {precios}
-            WHERE ean IN ({lista}) AND precio_lista > 0
+            FROM precios_seleccion
+            WHERE precio_lista > 0
               AND localidad IS NOT NULL AND provincia IS NOT NULL
             GROUP BY 1, 2, 3
         ) g
@@ -520,11 +534,23 @@ def main() -> None:
     env.globals["adsense"] = ADSENSE_CLIENT
 
     con = duckdb.connect()
+    con.execute("PRAGMA memory_limit = '1GB'")
+    con.execute("PRAGMA threads = 2")
     productos, seleccion, fecha = cargar(con)
     eans = [p["ean"] for p in seleccion]
-    ofertas = cargar_ofertas(con, eans)
+
+    con.execute("CREATE TEMP TABLE seleccion_eans (ean VARCHAR PRIMARY KEY)")
+    con.executemany("INSERT INTO seleccion_eans VALUES (?)", [(e,) for e in eans])
+    con.execute(f"""
+        CREATE TEMP TABLE precios_seleccion AS
+        SELECT p.*
+        FROM '{PRECIOS_PARQUET.as_posix()}' p
+        JOIN seleccion_eans s ON p.ean = s.ean
+    """)
+
+    ofertas, total_ofertas, resumen_cadenas = cargar_ofertas(con)
     localidades = cargar_ubicaciones(con)
-    zonas = cargar_zonas(con, eans)
+    zonas = cargar_zonas(con)
 
     total_sucursales = con.execute(
         f"SELECT COUNT(DISTINCT suc_key) FROM '{PRECIOS_PARQUET.as_posix()}'"
@@ -657,18 +683,10 @@ def main() -> None:
         if not ops:
             continue
 
-        # Las sucursales más baratas primero: el listado va de menor a mayor.
-        mostrar = ops[:OFERTAS_POR_FICHA]
-
-        por_cadena: dict[str, list[float]] = {}
-        for o in ops:
-            por_cadena.setdefault(o["bandera"], []).append(o["precio"])
-        cadena_ctx = [{
-            "bandera": b,
-            "min_fmt": ars(min(v)),
-            "max_fmt": ars(max(v)),
-            "n": len(v),
-        } for b, v in sorted(por_cadena.items(), key=lambda kv: min(kv[1]))]
+        # Las 20 sucursales más baratas ya vienen seleccionadas por DuckDB
+        mostrar = ops
+        cadena_ctx = resumen_cadenas.get(p["ean"], [])
+        tot_ops = total_ofertas.get(p["ean"], len(ops))
 
         prov_ctx = []
         for iso, filas_iso in zonas.get(p["ean"], {}).items():
@@ -736,7 +754,7 @@ def main() -> None:
             diferencia_fmt=ars(dif),
             diferencia_pct=f"{pct:.0f}",
             ofertas=mostrar,
-            ofertas_restantes=len(ops) > len(mostrar),
+            ofertas_restantes=tot_ops > len(mostrar),
             por_cadena=cadena_ctx,
             provincias=prov_ctx,
             parrafo=parrafo,
@@ -825,8 +843,8 @@ def main() -> None:
         ],
     }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
-    n_zonas = escribir_zonas_locales(con, eans, datos_dir / "zona")
-    n_loc = escribir_localidades(con, eans, localidades, datos_dir / "localidad")
+    n_zonas = escribir_zonas_locales(con, datos_dir / "zona")
+    n_loc = escribir_localidades(con, localidades, datos_dir / "localidad")
 
     # --- buscador ---
     indices: dict[str, list] = {}
